@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nieuwe Computer Gegevens Template</title>
+    <!-- Add jsPDF library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            padding: 20px;
+        }
+        .banner-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+        }
+        .banner {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+        }
+        .form-container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .header h1 {
+            color: #1a73e8;
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .header p {
+            color: #666;
+            font-size: 0.9rem;
+            margin: 0;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+        .form-group h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:hover {
+            background-color: #1557b0;
+        }
+        .reset-links {
+            margin-top: 0.5rem;
+        }
+        .reset-links a {
+            color: #1a73e8;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .reset-links a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div style="width: 100%; max-width: 600px; margin: 0 auto;">
+        <div class="banner-container">
+            <img src="https://scontent-bru2-1.xx.fbcdn.net/v/t39.30808-6/327303337_1184661942246044_793807916927208025_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=cc71e4&_nc_ohc=AWga6GJzetcQ7kNvgGlhSq4&_nc_zt=23&_nc_ht=scontent-bru2-1.xx&_nc_gid=A0Srs352UiNRhagdX_rZT63&oh=00_AYA_Nt70QDlo0XaFBdCKCF6rEIgr7VAJpByXwWJHGvymrQ&oe=674DCB02" 
+                alt="Techstick Banner" 
+                class="banner">
+        </div>
+        <div class="form-container">
+            <div class="header">
+                <h1>Nieuwe Computer Gegevens</h1>
+                <p>Vul hieronder uw gegevens en e-mailadressen in voor onze administratie.</p>
+            </div>
+            <form id="loginForm">
+                <!-- Client Information -->
+                <div class="form-group">
+                    <h2>Klant Informatie</h2>
+                    <div class="input-group">
+                        <label for="client-name">Naam</label>
+                        <input type="text" id="client-name" name="client-name" placeholder="Volledige naam" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-phone">Telefoonnummer</label>
+                        <input type="tel" id="client-phone" name="client-phone" placeholder="0470 12 34 56" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-address">Adres</label>
+                        <input type="text" id="client-address" name="client-address" placeholder="Straat en huisnummer" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-postal">Postcode</label>
+                        <input type="text" id="client-postal" name="client-postal" placeholder="1000" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-city">Gemeente</label>
+                        <input type="text" id="client-city" name="client-city" placeholder="Gemeente" required>
+                    </div>
+                </div>
+
+                <!-- Windows/Microsoft Account -->
+                <div class="form-group">
+                    <h2>Windows/Microsoft Account</h2>
+                    <div class="input-group">
+                        <label for="microsoft-email">Microsoft E-mailadres</label>
+                        <input type="email" id="microsoft-email" name="microsoft-email" placeholder="uw@outlook.com" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="microsoft-password">Microsoft Wachtwoord</label>
+                        <input type="password" id="microsoft-password" name="microsoft-password" required>
+                    </div>
+                    <div class="reset-links">
+                        <a href="https://account.live.com/ResetPassword.aspx" target="_blank">Wachtwoord vergeten? Klik hier voor Microsoft/Outlook</a>
+                    </div>
+                </div>
+
+                <!-- Gmail -->
+                <div class="form-group">
+                    <h2>Gmail Account</h2>
+                    <div class="input-group">
+                        <label for="gmail-email">Gmail E-mailadres</label>
+                        <input type="email" id="gmail-email" name="gmail-email" placeholder="uw@gmail.com">
+                    </div>
+                    <div class="input-group">
+                        <label for="gmail-password">Gmail Wachtwoord</label>
+                        <input type="password" id="gmail-password" name="gmail-password">
+                    </div>
+                    <div class="reset-links">
+                        <a href="https://accounts.google.com/signin/recovery" target="_blank">Wachtwoord vergeten? Klik hier voor Gmail</a>
+                    </div>
+                </div>
+
+                <!-- Telenet -->
+                <div class="form-group">
+                    <h2>Telenet Account</h2>
+                    <div class="input-group">
+                        <label for="telenet-email">Telenet E-mailadres</label>
+                        <input type="email" id="telenet-email" name="telenet-email" placeholder="uw@telenet.be">
+                    </div>
+                    <div class="input-group">
+                        <label for="telenet-password">Telenet Wachtwoord</label>
+                        <input type="password" id="telenet-password" name="telenet-password">
+                    </div>
+                    <div class="reset-links">
+                        <a href="https://www2.telenet.be/nl/profiel/wachtwoord-vergeten?/#/login=dzsdsdsd/loginredirecturl=https%253A%252F%252Fwww2.telenet.be%252Fmytelenet" target="_blank">Wachtwoord vergeten? Klik hier voor Telenet</a>
+                    </div>
+                </div>
+
+                <!-- Proximus -->
+                <div class="form-group">
+                    <h2>Proximus Account</h2>
+                    <div class="input-group">
+                        <label for="proximus-email">Proximus E-mailadres</label>
+                        <input type="email" id="proximus-email" name="proximus-email" placeholder="uw@proximus.be">
+                    </div>
+                    <div class="input-group">
+                        <label for="proximus-password">Proximus Wachtwoord</label>
+                        <input type="password" id="proximus-password" name="proximus-password">
+                    </div>
+                    <div class="reset-links">
+                        <a href="https://www.proximus.be/nl/customs/spa/apps/mailbox/#/recoverpassword?returnAddress=https:%2F%2Fwww.proximus.be%2Flogin%2Fnl%2Fwebmail.html&guiLang=nl" target="_blank">Wachtwoord vergeten? Klik hier voor Proximus</a>
+                    </div>
+                </div>
+
+                <button type="submit">Gegevens Opslaan</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Initialize jsPDF
+        window.jsPDF = window.jspdf.jsPDF;
+
+        function generatePDF(data) {
+            // Create new PDF document
+            const doc = new jsPDF();
+            
+            // Add banner image
+            doc.addImage(document.querySelector('.banner').src, 'JPEG', 15, 10, 180, 40);
+            
+            // Set font size and style
+            doc.setFontSize(20);
+            doc.text('Nieuwe Computer Gegevens', 15, 60);
+            
+            // Set font size for content
+            doc.setFontSize(12);
+            
+            // Add client information
+            doc.text('Klant Informatie:', 15, 70);
+            doc.text(`Naam: ${data.clientInfo.name}`, 20, 80);
+            doc.text(`Telefoonnummer: ${data.clientInfo.phone}`, 20, 90);
+            doc.text(`Adres: ${data.clientInfo.address}`, 20, 100);
+            doc.text(`Postcode: ${data.clientInfo.postal}`, 20, 110);
+            doc.text(`Gemeente: ${data.clientInfo.city}`, 20, 120);
+            
+            // Add Microsoft account information
+            doc.text('Microsoft Account:', 15, 140);
+            doc.text(`E-mail: ${data.microsoft.email}`, 20, 150);
+            doc.text(`Wachtwoord: ${data.microsoft.password}`, 20, 160);
+            
+            // Add Gmail account information if provided
+            if (data.gmail.email || data.gmail.password) {
+                doc.text('Gmail Account:', 15, 180);
+                doc.text(`E-mail: ${data.gmail.email}`, 20, 190);
+                doc.text(`Wachtwoord: ${data.gmail.password}`, 20, 200);
+            }
+            
+            // Add Telenet account information if provided
+            if (data.telenet.email || data.telenet.password) {
+                doc.text('Telenet Account:', 15, 220);
+                doc.text(`E-mail: ${data.telenet.email}`, 20, 230);
+                doc.text(`Wachtwoord: ${data.telenet.password}`, 20, 240);
+            }
+            
+            // Add Proximus account information if provided
+            if (data.proximus.email || data.proximus.password) {
+                doc.text('Proximus Account:', 15, 260);
+                doc.text(`E-mail: ${data.proximus.email}`, 20, 270);
+                doc.text(`Wachtwoord: ${data.proximus.password}`, 20, 280);
+            }
+            
+            // Add footer with date
+            const date = new Date().toLocaleDateString('nl-BE');
+            doc.setFontSize(10);
+            doc.text(`Gegenereerd op: ${date}`, 15, 290);
+            
+            // Save the PDF
+            const fileName = `Computer_Gegevens_${data.clientInfo.name.replace(/\s+/g, '_')}.pdf`;
+            doc.save(fileName);
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const data = {
+                clientInfo: {
+                    name: document.getElementById('client-name').value,
+                    phone: document.getElementById('client-phone').value,
+                    address: document.getElementById('client-address').value,
+                    postal: document.getElementById('client-postal').value,
+                    city: document.getElementById('client-city').value
+                },
+                microsoft: {
+                    email: document.getElementById('microsoft-email').value,
+                    password: document.getElementById('microsoft-password').value
+                },
+                gmail: {
+                    email: document.getElementById('gmail-email').value,
+                    password: document.getElementById('gmail-password').value
+                },
+                telenet: {
+                    email: document.getElementById('telenet-email').value,
+                    password: document.getElementById('telenet-password').value
+                },
+                proximus: {
+                    email: document.getElementById('proximus-email').value,
+                    password: document.getElementById('proximus-password').value
+                }
+            };
+            
+            // Generate PDF with the collected data
+            generatePDF(data);
+            
+            // Clear the form
+            this.reset();
+            alert('Gegevens succesvol opgeslagen en PDF gegenereerd!');
+        });
+    </script>
+</body>
+</html>
