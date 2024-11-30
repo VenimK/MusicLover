@@ -310,8 +310,10 @@
             doc.setFontSize(10);
             doc.text(`Gegenereerd op: ${date}`, 15, 300);
             
-            // Save the PDF
-            const fileName = `Computer_Gegevens_${data.clientInfo.number}.pdf`;
+            // Save the PDF with Klantnummer
+            const klantnummer = data.clientInfo.number || 'unknown';
+            const fileName = `Computer_Gegevens_${klantnummer}.pdf`;
+            console.log('Saving with klantnummer:', klantnummer); // Debug log
             doc.save(fileName);
         }
 
