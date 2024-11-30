@@ -44,7 +44,7 @@
             margin: 0;
             background-color: var(--bg-color);
             padding: 20px;
-            color: var(--text-color);
+            color: var(--text-color); 
         }
         .banner-container {
             width: 100%;
@@ -311,7 +311,7 @@
             doc.text(`Gegenereerd op: ${date}`, 15, 300);
             
             // Save the PDF
-            const fileName = `Computer_Gegevens_${data.clientInfo.name.replace(/\s+/g, '_')}.pdf`;
+            const fileName = `Computer_Gegevens_${data.clientInfo.number}.pdf`;
             doc.save(fileName);
         }
 
