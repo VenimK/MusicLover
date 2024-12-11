@@ -1055,7 +1055,7 @@ function Install-MicrosoftOffice {
             "/addProduct $ProductId",
             "/channel Current",
             "/architecture $Architecture",
-            "/language nl-nl,en-us",
+            "/language nl-nl",
             "/download",
             "/install",
             "/quiet"
