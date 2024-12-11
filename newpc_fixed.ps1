@@ -499,8 +499,8 @@ function Install-AdobeReader {
         
         Show-Progress -Activity "Adobe Reader" -Status "Downloaden..." -PercentComplete 30
         
-        # Download Adobe Reader
-        $url = "https://ardownload2.adobe.com/pub/adobe/reader/win/AcrobatDC/2300920137/AcroRdrDC2300920137_nl_NL.exe"
+        # Download Adobe Reader using the direct download URL
+        $url = "https://admdownload.adobe.com/rdcm/installers/live/readerdc64.exe"
         $installerPath = Join-Path $env:TEMP "AdobeReaderDC.exe"
         
         Write-Host "Adobe Reader downloaden..." -ForegroundColor Cyan
@@ -750,28 +750,23 @@ function Open-IndexFile {
         }
 
         Show-Progress -Activity "Index Bestand" -Status "Chrome openen..." -PercentComplete 80
-        # Open in Chrome
+        # Open in Chrome minimized
         $chromePath = "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe"
         $chromePath86 = "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
         
+        $chromeProcess = $null
         if (Test-Path $chromePath) {
-            Start-Process $chromePath -ArgumentList $indexPath
+            $chromeProcess = Start-Process $chromePath -ArgumentList $indexPath -WindowStyle Minimized -PassThru
         }
         elseif (Test-Path $chromePath86) {
-            Start-Process $chromePath86 -ArgumentList $indexPath
+            $chromeProcess = Start-Process $chromePath86 -ArgumentList $indexPath -WindowStyle Minimized -PassThru
         }
         else {
             throw "Google Chrome niet gevonden"
         }
 
-        # Give Chrome a moment to open
-        Start-Sleep -Seconds 1
-        
-        # Bring PowerShell window back to focus
-        Set-PowerShellWindowFocus
-
         Show-Progress -Activity "Index Bestand" -Status "Voltooid" -PercentComplete 100
-        Write-Host "`nIndex bestand succesvol geopend in Chrome" -ForegroundColor Green
+        Write-Host "`nIndex bestand succesvol geopend in Chrome (geminimaliseerd)" -ForegroundColor Green
         Write-LogMessage "Index bestand succesvol geopend"
         
         return $true
