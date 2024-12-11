@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const port = 3005;
+const port = 3000;
 
 // Configure multer for handling file uploads
 const upload = multer({ storage: multer.memoryStorage() });

@@ -199,7 +199,18 @@ function Install-WingetSoftware {
         
         Show-Progress -Activity "Winget" -Status "Voorbereiden..." -PercentComplete 10
         
-        # Install software using winget
+        # Get all available upgrades at once
+        Write-Host "Beschikbare updates controleren..." -ForegroundColor Cyan
+        $availableUpdates = winget upgrade --accept-source-agreements | Out-String
+        $upgradeList = @{}
+        
+        # Parse the output to create a lookup table of available updates
+        $availableUpdates -split "`n" | ForEach-Object {
+            if ($_ -match "^[\s\S]+?\s+(\S+)\s+\S+\s+\S+\s+\S+") {
+                $upgradeList[$matches[1]] = $true
+            }
+        }
+        
         $softwareList = @(
             @{
                 Id = "Google.Chrome"
@@ -251,7 +262,7 @@ function Install-WingetSoftware {
             $currentStep++
             $progress = [math]::Round(($currentStep / $totalSteps) * 100)
             
-            Show-Progress -Activity "Winget" -Status "Controleren $($software.Id)..." -PercentComplete $progress
+            Show-Progress -Activity "Software Installatie" -Status "Controleren $($software.Id)..." -PercentComplete $progress
             
             Write-Host "`nControleren $($software.Id)..." -ForegroundColor Cyan
             Write-LogMessage "Start controle van $($software.Id)"
@@ -284,14 +295,19 @@ function Install-WingetSoftware {
             }
             
             if ($isInstalled) {
-                Write-Host "$($software.Id) is al geinstalleerd. Controleren op updates..." -ForegroundColor Yellow
-                Write-LogMessage "$($software.Id) is al geinstalleerd, upgrade check"
-                
-                # Try to upgrade if already installed
-                winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "$($software.Id) is bijgewerkt naar de laatste versie" -ForegroundColor Green
-                    Write-LogMessage "$($software.Id) upgrade succesvol"
+                # Check if update is available using the pre-fetched list
+                if ($upgradeList.ContainsKey($software.Id)) {
+                    Write-Host "$($software.Id) update beschikbaar. Bijwerken..." -ForegroundColor Yellow
+                    Write-LogMessage "$($software.Id) update beschikbaar, start upgrade"
+                    
+                    winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "$($software.Id) is bijgewerkt naar de laatste versie" -ForegroundColor Green
+                        Write-LogMessage "$($software.Id) upgrade succesvol"
+                    }
+                } else {
+                    Write-Host "$($software.Id) is al geinstalleerd en up-to-date" -ForegroundColor Green
+                    Write-LogMessage "$($software.Id) is up-to-date"
                 }
             } else {
                 # Install if not present
@@ -307,16 +323,15 @@ function Install-WingetSoftware {
             }
         }
         
-        Show-Progress -Activity "Winget" -Status "Voltooid" -PercentComplete 100
+        Show-Progress -Activity "Software Installatie" -Status "Voltooid" -PercentComplete 100
         Write-Host "`nAlle software installaties voltooid" -ForegroundColor Green
         Write-LogMessage "Alle software installaties voltooid"
         return $true
     }
     catch {
-        $errorMsg = $_.Exception.Message
-        Write-Host "`nWinget software installatie mislukt: $errorMsg" -ForegroundColor Red
-        Write-LogMessage "Winget software installatie mislukt: $errorMsg"
-        Show-Progress -Activity "Winget" -Status "Mislukt" -PercentComplete 100
+        Write-Host "Software installatie mislukt: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Software installatie mislukt: $($_.Exception.Message)"
+        Show-Progress -Activity "Software Installatie" -Status "Mislukt" -PercentComplete 100
         return $false
     }
 }
@@ -512,7 +527,7 @@ function Start-NodeServer {
         # Start the server in a new window
         Start-Process powershell -ArgumentList "-NoExit", "-Command", "node `"$serverPath`""
         
-        Write-Host "Node.js server gestart op http://localhost:3001" -ForegroundColor Green
+        Write-Host "Node.js server gestart op http://localhost:3000" -ForegroundColor Green
         Write-LogMessage "Node.js server succesvol gestart"
         Show-Progress -Activity "Server" -Completed
         return $true
