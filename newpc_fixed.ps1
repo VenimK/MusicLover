@@ -456,7 +456,7 @@ function Start-NodeServer {
         # Start the server in a new window
         Start-Process powershell -ArgumentList "-NoExit", "-Command", "node `"$serverPath`""
         
-        Write-Host "Node.js server gestart op http://localhost:3000" -ForegroundColor Green
+        Write-Host "Node.js server gestart op http://localhost:3001" -ForegroundColor Green
         Write-LogMessage "Node.js server succesvol gestart"
         Show-Progress -Activity "Server" -Completed
         return $true
