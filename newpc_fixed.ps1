@@ -104,6 +104,82 @@ function Connect-ToWiFi {
     }
 }
 
+# Function to install Windows Update module if needed
+function Install-WindowsUpdateModule {
+    Write-Host "Windows Update PowerShell module controleren..." -ForegroundColor Yellow
+    Write-LogMessage "Windows Update PowerShell module controle gestart"
+    
+    try {
+        if (!(Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+            Write-Host "PSWindowsUpdate module installeren..." -ForegroundColor Yellow
+            Install-Module -Name PSWindowsUpdate -Force -AllowClobber
+            Write-LogMessage "PSWindowsUpdate module geïnstalleerd"
+        }
+        Import-Module PSWindowsUpdate
+        return $true
+    }
+    catch {
+        Write-Host "Fout bij installeren Windows Update module: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Fout bij installeren Windows Update module: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Function to check and install Windows Updates
+function Install-WindowsUpdates {
+    Write-Host "Windows Updates controleren en installeren..." -ForegroundColor Yellow
+    Write-LogMessage "Windows Updates proces gestart"
+    
+    try {
+        if (-not (Install-WindowsUpdateModule)) {
+            throw "Kon Windows Update module niet installeren"
+        }
+
+        # Check for all updates including optional ones
+        Write-Host "Beschikbare updates controleren (inclusief optionele updates)..." -ForegroundColor Yellow
+        
+        # Get regular updates
+        $regularUpdates = Get-WindowsUpdate
+        
+        # Get optional updates
+        $optionalUpdates = Get-WindowsUpdate -IsHidden
+        
+        $totalUpdates = $regularUpdates.Count + $optionalUpdates.Count
+
+        if ($totalUpdates -eq 0) {
+            Write-Host "Geen updates beschikbaar (regulier of optioneel)" -ForegroundColor Green
+            Write-LogMessage "Geen Windows Updates beschikbaar"
+            return $true
+        }
+
+        Write-Host "Gevonden updates:" -ForegroundColor Yellow
+        Write-Host "- Reguliere updates: $($regularUpdates.Count)" -ForegroundColor Yellow
+        Write-Host "- Optionele updates: $($optionalUpdates.Count)" -ForegroundColor Yellow
+        Write-LogMessage "Gevonden: $($regularUpdates.Count) reguliere updates, $($optionalUpdates.Count) optionele updates"
+
+        # Install regular updates
+        if ($regularUpdates.Count -gt 0) {
+            Write-Host "Reguliere updates worden geinstalleerd..." -ForegroundColor Yellow
+            Install-WindowsUpdate -AcceptAll -AutoReboot:$false -Verbose | Out-File (Join-Path $env:TEMP "Windows_Regular_Updates_Log.txt")
+        }
+
+        # Install optional updates
+        if ($optionalUpdates.Count -gt 0) {
+            Write-Host "Optionele updates worden geinstalleerd..." -ForegroundColor Yellow
+            Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IsHidden -Verbose | Out-File (Join-Path $env:TEMP "Windows_Optional_Updates_Log.txt")
+        }
+        
+        Write-Host "Alle Windows Updates succesvol geinstalleerd (regulier en optioneel)" -ForegroundColor Green
+        Write-LogMessage "Alle Windows Updates succesvol geinstalleerd"
+        return $true
+    }
+    catch {
+        Write-Host "Fout bij Windows Updates: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Fout bij Windows Updates: $($_.Exception.Message)"
+        return $false
+    }
+}
+
 # Function to check Node.js installation
 function Test-NodeJS {
     Write-Host "Node.js installatie controleren..." -ForegroundColor Yellow
@@ -153,7 +229,7 @@ function Install-NodeJS {
         $nodePath = "C:\Program Files\nodejs"
         $env:Path = "$env:Path;$nodePath"
         
-        Write-Host "Node.js succesvol geïnstalleerd" -ForegroundColor Green
+        Write-Host "Node.js succesvol geinstalleerd" -ForegroundColor Green
         Write-LogMessage "Node.js installatie succesvol"
         Write-Progress -Activity "Node.js Installatie" -Completed
         
@@ -187,8 +263,8 @@ function Install-NpmPackages {
             throw "NPM install commando mislukt"
         }
         
-        Write-Host "NPM packages succesvol geïnstalleerd" -ForegroundColor Green
-        Write-LogMessage "NPM packages succesvol geïnstalleerd"
+        Write-Host "NPM packages succesvol geinstalleerd" -ForegroundColor Green
+        Write-LogMessage "NPM packages succesvol geinstalleerd"
         Write-Progress -Activity "NPM Packages" -Completed
         return $true
     }
@@ -239,11 +315,19 @@ try {
     # Stap 2: WiFi verbinding
     Write-Host "`nStap 2: WiFi verbinding maken..." -ForegroundColor Yellow
     if (-not (Connect-ToWiFi)) {
-        throw "WiFi verbinding mislukt"
+        Write-Host "WiFi verbinding mislukt, maar script gaat door..." -ForegroundColor Yellow
+        Write-LogMessage "WiFi verbinding mislukt, script gaat door"
     }
 
-    # Stap 3: Node.js installatie
-    Write-Host "`nStap 3: Node.js installatie controleren..." -ForegroundColor Yellow
+    # Stap 3: Windows Updates
+    Write-Host "`nStap 3: Windows Updates controleren en installeren..." -ForegroundColor Yellow
+    if (-not (Install-WindowsUpdates)) {
+        Write-Host "Windows Updates gefaald, maar script gaat door..." -ForegroundColor Yellow
+        Write-LogMessage "Windows Updates gefaald, script gaat door"
+    }
+
+    # Stap 4: Node.js installatie
+    Write-Host "`nStap 4: Node.js installatie controleren..." -ForegroundColor Yellow
     if (-not (Test-NodeJS)) {
         Write-Host "Node.js niet gevonden. Installatie starten..." -ForegroundColor Yellow
         if (-not (Install-NodeJS)) {
@@ -256,14 +340,14 @@ try {
         }
     }
 
-    # Stap 4: NPM packages installeren
-    Write-Host "`nStap 4: NPM packages installeren..." -ForegroundColor Yellow
+    # Stap 5: NPM packages installeren
+    Write-Host "`nStap 5: NPM packages installeren..." -ForegroundColor Yellow
     if (-not (Install-NpmPackages)) {
         throw "NPM packages installatie mislukt"
     }
 
-    # Stap 5: Server starten
-    Write-Host "`nStap 5: Node.js server starten..." -ForegroundColor Yellow
+    # Stap 6: Server starten
+    Write-Host "`nStap 6: Node.js server starten..." -ForegroundColor Yellow
     if (-not (Start-NodeServer)) {
         throw "Server starten mislukt"
     }
