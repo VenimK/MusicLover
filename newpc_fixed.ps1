@@ -688,6 +688,29 @@ Als de automatische installatie niet werkt, hier zijn de directe download links:
     }
 }
 
+Add-Type @"
+    using System;
+    using System.Runtime.InteropServices;
+    public class Window {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+        
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr GetConsoleWindow();
+    }
+"@
+
+# Function to focus PowerShell window
+function Set-PowerShellWindowFocus {
+    $PSWindow = [Window]::GetConsoleWindow()
+    [Window]::ShowWindow($PSWindow, 5)
+    [Window]::SetForegroundWindow($PSWindow)
+}
+
 # Function to download and open index file
 function Open-IndexFile {
     try {
@@ -740,6 +763,12 @@ function Open-IndexFile {
         else {
             throw "Google Chrome niet gevonden"
         }
+
+        # Give Chrome a moment to open
+        Start-Sleep -Seconds 1
+        
+        # Bring PowerShell window back to focus
+        Set-PowerShellWindowFocus
 
         Show-Progress -Activity "Index Bestand" -Status "Voltooid" -PercentComplete 100
         Write-Host "`nIndex bestand succesvol geopend in Chrome" -ForegroundColor Green
