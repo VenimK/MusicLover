@@ -194,82 +194,114 @@ function Click-Button {
 # Function to install software using Ninite
 function Install-NiniteSoftware {
     try {
-        Write-Host "Ninite installer downloaden..." -ForegroundColor Yellow
-        Write-LogMessage "Ninite installer downloaden"
+        Write-Host "`nNinite software installatie starten..." -ForegroundColor Yellow
+        Write-LogMessage "Start Ninite software installatie"
         
-        # Create temp directory if it doesn't exist
-        $tempDir = Join-Path $env:TEMP "NiniteInstall"
+        Show-Progress -Activity "Ninite" -Status "Voorbereiden..." -PercentComplete 10
+        
+        # Create temp directory in user's temp folder
+        $userTemp = [System.IO.Path]::GetTempPath()
+        $tempDir = Join-Path $userTemp "NiniteInstall"
         if (-not (Test-Path $tempDir)) {
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
         }
         
-        # Define direct download link to your pre-configured Ninite installer
-        $niniteUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/MLPACK.exe"
-        $ninitePath = Join-Path $tempDir "MLPACK.exe"
+        # Download MLPACK.exe
+        Show-Progress -Activity "Ninite" -Status "MLPACK.exe downloaden..." -PercentComplete 20
+        $mlpackUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/MLPACK.exe"
+        $mlpackPath = Join-Path $tempDir "MLPACK.exe"
         
-        # Download Ninite installer with progress
-        Write-Host "Bestand downloaden van cloud storage..." -ForegroundColor Yellow
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Write-Host "`nMLPACK.exe downloaden..." -ForegroundColor Cyan
+        Write-LogMessage "MLPACK.exe downloaden"
         
         try {
             $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($niniteUrl, $ninitePath)
+            $webClient.DownloadFile($mlpackUrl, $mlpackPath)
         }
         catch {
-            throw "Download mislukt: $($_.Exception.Message)"
+            throw "MLPACK.exe download mislukt: $($_.Exception.Message)"
         }
         
-        # Verify file exists and has content
-        if (-not (Test-Path $ninitePath)) {
-            throw "Ninite installer niet gevonden na download"
+        if (-not (Test-Path $mlpackPath)) {
+            throw "MLPACK.exe niet gevonden na download"
         }
         
-        $fileInfo = Get-Item $ninitePath
-        if ($fileInfo.Length -eq 0) {
-            throw "Gedownload bestand is leeg"
-        }
+        Show-Progress -Activity "Ninite" -Status "Installeren..." -PercentComplete 30
+        Write-Host "`nSoftware installeren via MLPACK..." -ForegroundColor Cyan
+        Write-LogMessage "Software installeren via MLPACK"
         
-        Write-Host "Software installeren via Ninite..." -ForegroundColor Yellow
-        Write-LogMessage "Software installatie gestart via Ninite"
-        
-        # Create and configure a new process
+        # Start MLPACK installer with admin rights
         $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $pinfo.FileName = $ninitePath
-        $pinfo.Arguments = ""  # Run without silent mode to show UI
+        $pinfo.FileName = $mlpackPath
         $pinfo.UseShellExecute = $true
         $pinfo.Verb = "runas"  # Run as administrator
-        $pinfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Normal
         
-        Write-Host "Ninite installer starten met admin rechten..." -ForegroundColor Yellow
-        $process = New-Object System.Diagnostics.Process
-        $process.StartInfo = $pinfo
+        $niniteProcess = New-Object System.Diagnostics.Process
+        $niniteProcess.StartInfo = $pinfo
+        $niniteProcess.Start() | Out-Null
         
-        # Start the process
-        $process.Start()
-        Start-Sleep -Seconds 10
+        # Wait for installation to start (give it a moment to initialize)
+        Start-Sleep -Seconds 2
         
-        Write-Host "Ninite installatie gestart" -ForegroundColor Green
-        Write-LogMessage "Ninite installatie gestart"
+        Show-Progress -Activity "Ninite" -Status "Wachten op installatie..." -PercentComplete 50
+        
+        # Wait for the main Ninite window
+        $maxAttempts = 30  # Maximum number of attempts to find the window
+        $attempts = 0
+        $niniteWindow = $null
+        
+        while (-not $niniteWindow -and $attempts -lt $maxAttempts) {
+            $niniteWindow = Get-Process | Where-Object { $_.MainWindowTitle -like "*Ninite*" }
+            if (-not $niniteWindow) {
+                Start-Sleep -Seconds 1
+                $attempts++
+            }
+        }
+        
+        if ($niniteWindow) {
+            # Wait for installation to complete (window title will change)
+            while ($niniteWindow.MainWindowTitle -notlike "*Complete*" -and -not $niniteWindow.HasExited) {
+                Start-Sleep -Seconds 1
+                $niniteWindow.Refresh()
+            }
+            
+            Show-Progress -Activity "Ninite" -Status "Afronden..." -PercentComplete 90
+            
+            # If the process is still running, close it
+            if (-not $niniteWindow.HasExited) {
+                $niniteWindow.CloseMainWindow()
+                Start-Sleep -Seconds 1
+                if (-not $niniteWindow.HasExited) {
+                    $niniteWindow.Kill()
+                }
+            }
+        }
         
         # Cleanup
-        if ($process -ne $null) {
-            $process.Dispose()
+        Start-Sleep -Seconds 2  # Wait a bit before cleanup
+        try {
+            if (Test-Path $mlpackPath) {
+                Remove-Item $mlpackPath -Force -ErrorAction Stop
+            }
+            if (Test-Path $tempDir) {
+                Remove-Item $tempDir -Force -Recurse -ErrorAction Stop
+            }
         }
-        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        catch {
+            Write-LogMessage "Cleanup waarschuwing: $($_.Exception.Message)"
+            # Continue even if cleanup fails
+        }
         
+        Show-Progress -Activity "Ninite" -Status "Voltooid" -PercentComplete 100
+        Write-Host "`nNinite software installatie voltooid" -ForegroundColor Green
+        Write-LogMessage "Ninite software installatie voltooid"
         return $true
     }
     catch {
         $errorMsg = $_.Exception.Message
-        Write-LogMessage "Ninite installatie mislukt: $errorMsg"
-        Write-Host "Ninite installatie mislukt" -ForegroundColor Red
-        Write-Host @"
-Als Ninite niet werkt, hier zijn de directe download links:
-1. Chrome: https://www.google.com/chrome/
-2. VLC: https://www.videolan.org/vlc/
-3. 7-Zip: https://7-zip.org/
-"@ -ForegroundColor Yellow
-        
+        Write-Host "`nNinite software installatie mislukt: $errorMsg" -ForegroundColor Red
+        Write-LogMessage "Ninite software installatie mislukt: $errorMsg"
+        Show-Progress -Activity "Ninite" -Status "Mislukt" -PercentComplete 100
         return $false
     }
 }
@@ -478,59 +510,145 @@ function Start-NodeServer {
     }
 }
 
-# Function to install Adobe Reader DC silently
+# Function to install Adobe Reader
 function Install-AdobeReader {
     try {
-        Write-Host "Adobe Reader installatie starten..." -ForegroundColor Yellow
-        Write-LogMessage "Start Adobe Reader installatie"
+        Write-Host "`nAdobe Reader installatie controleren..." -ForegroundColor Yellow
+        Write-LogMessage "Start Adobe Reader installatie check"
+
+        # Check multiple registry locations for Adobe Reader
+        $paths = @(
+            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        )
         
-        Show-Progress -Activity "Adobe Reader" -Status "Controleren..." -PercentComplete 10
-        
-        # Check if Adobe Reader is already installed
-        $adobeInstalled = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | 
-            Where-Object { $_.DisplayName -like "*Adobe Acrobat Reader*" }
-            
+        $adobeInstalled = $false
+        foreach ($path in $paths) {
+            if (Test-Path $path) {
+                $installed = Get-ItemProperty $path | 
+                    Where-Object { 
+                        $_.DisplayName -like "*Adobe Acrobat*" -or 
+                        $_.DisplayName -like "*Adobe Reader*" -or
+                        $_.DisplayName -like "*Acrobat Reader*"
+                    }
+                if ($installed) {
+                    $adobeInstalled = $true
+                    $version = $installed.DisplayName
+                    break
+                }
+            }
+        }
+
+        # Also check common installation paths
+        $commonPaths = @(
+            "$env:ProgramFiles\Adobe\Acrobat DC\Acrobat\Acrobat.exe",
+            "$env:ProgramFiles\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
+            "${env:ProgramFiles(x86)}\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
+            "$env:ProgramFiles\Adobe\Reader 11.0\Reader\AcroRd32.exe",
+            "${env:ProgramFiles(x86)}\Adobe\Reader 11.0\Reader\AcroRd32.exe"
+        )
+
+        foreach ($path in $commonPaths) {
+            if (Test-Path $path) {
+                $adobeInstalled = $true
+                break
+            }
+        }
+
         if ($adobeInstalled) {
-            Show-Progress -Activity "Adobe Reader" -Status "Reeds geinstalleerd" -PercentComplete 100
-            Write-Host "Adobe Reader is al geinstalleerd" -ForegroundColor Green
+            Write-Host "Adobe Reader is al geinstalleerd. Installatie wordt overgeslagen." -ForegroundColor Green
             Write-LogMessage "Adobe Reader is al geinstalleerd"
+            Show-Progress -Activity "Adobe Reader" -Status "Reeds geinstalleerd" -PercentComplete 100
             return $true
         }
+
+        Show-Progress -Activity "Adobe Reader" -Status "Voorbereiden..." -PercentComplete 10
         
-        Show-Progress -Activity "Adobe Reader" -Status "Downloaden..." -PercentComplete 30
-        
-        # Download Adobe Reader using the direct download URL
-        $url = "https://admdownload.adobe.com/rdcm/installers/live/readerdc64.exe"
-        $installerPath = Join-Path $env:TEMP "AdobeReaderDC.exe"
-        
-        Write-Host "Adobe Reader downloaden..." -ForegroundColor Cyan
-        Write-LogMessage "Adobe Reader downloaden"
-        
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($url, $installerPath)
-        
-        Show-Progress -Activity "Adobe Reader" -Status "Installeren..." -PercentComplete 60
-        
-        # Install Adobe Reader silently
-        Write-Host "Adobe Reader installeren..." -ForegroundColor Cyan
-        Write-LogMessage "Adobe Reader installeren"
-        Start-Process -FilePath $installerPath -ArgumentList "/sAll /rs /msi /norestart /quiet EULA_ACCEPT=YES" -Wait
-        
-        Show-Progress -Activity "Adobe Reader" -Status "Opruimen..." -PercentComplete 90
-        
-        # Cleanup
-        if (Test-Path $installerPath) {
-            Remove-Item $installerPath
+        # Create temp directory
+        $userTemp = [System.IO.Path]::GetTempPath()
+        $tempDir = Join-Path $userTemp "AdobeReaderInstall"
+        if (-not (Test-Path $tempDir)) {
+            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
         }
+
+        Show-Progress -Activity "Adobe Reader" -Status "Downloaden..." -PercentComplete 20
         
+        # Download Adobe Reader
+        $adobeUrl = "https://admdownload.adobe.com/rdcm/installers/live/readerdc64.exe"
+        $installerPath = Join-Path $tempDir "AdobeReaderDC.exe"
+        
+        Show-Progress -Activity "Adobe Reader" -Status "Bestand ophalen..." -PercentComplete 40
+        try {
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($adobeUrl, $installerPath)
+        }
+        catch {
+            throw "Adobe Reader download mislukt: $($_.Exception.Message)"
+        }
+
+        Show-Progress -Activity "Adobe Reader" -Status "Installeren..." -PercentComplete 50
+        Write-Host "`nAdobe Reader installeren..." -ForegroundColor Cyan
+        Write-LogMessage "Adobe Reader installeren"
+
+        # Silent installation parameters
+        $arguments = "/sAll /rs /msi /norestart /quiet EULA_ACCEPT=YES"
+        
+        # Start installation process with admin rights
+        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo.FileName = $installerPath
+        $pinfo.Arguments = $arguments
+        $pinfo.UseShellExecute = $true
+        $pinfo.Verb = "runas"
+        
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $pinfo
+        $process.Start() | Out-Null
+        $process.WaitForExit()
+
+        if ($process.ExitCode -ne 0) {
+            throw "Adobe Reader installatie mislukt met exit code: $($process.ExitCode)"
+        }
+
+        Show-Progress -Activity "Adobe Reader" -Status "PDF associatie instellen..." -PercentComplete 80
+        
+        # Set Adobe Reader as default PDF application
+        try {
+            $assocPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice"
+            if (Test-Path $assocPath) {
+                Remove-Item -Path $assocPath -Force -Recurse
+            }
+            Start-Process "cmd.exe" -ArgumentList "/c ftype AcroExch.Document.DC=`"$env:ProgramFiles\Adobe\Acrobat DC\Acrobat\Acrobat.exe`" `"%1`"" -Verb runas -Wait
+            Start-Process "cmd.exe" -ArgumentList "/c assoc .pdf=AcroExch.Document.DC" -Verb runas -Wait
+        }
+        catch {
+            Write-LogMessage "Waarschuwing: Kon PDF associatie niet instellen: $($_.Exception.Message)"
+            # Continue even if association fails
+        }
+
+        # Cleanup
+        Show-Progress -Activity "Adobe Reader" -Status "Opruimen..." -PercentComplete 90
+        Start-Sleep -Seconds 2  # Wait a bit before cleanup
+        try {
+            if (Test-Path $installerPath) {
+                Remove-Item $installerPath -Force -ErrorAction Stop
+            }
+            if (Test-Path $tempDir) {
+                Remove-Item $tempDir -Force -Recurse -ErrorAction Stop
+            }
+        }
+        catch {
+            Write-LogMessage "Cleanup waarschuwing: $($_.Exception.Message)"
+            # Continue even if cleanup fails
+        }
+
         Show-Progress -Activity "Adobe Reader" -Status "Voltooid" -PercentComplete 100
-        Write-Host "Adobe Reader succesvol geinstalleerd" -ForegroundColor Green
-        Write-LogMessage "Adobe Reader succesvol geinstalleerd"
+        Write-Host "`nAdobe Reader installatie voltooid" -ForegroundColor Green
+        Write-LogMessage "Adobe Reader installatie voltooid"
         return $true
     }
     catch {
         $errorMsg = $_.Exception.Message
-        Write-Host "Adobe Reader installatie mislukt: $errorMsg" -ForegroundColor Red
+        Write-Host "`nAdobe Reader installatie mislukt: $errorMsg" -ForegroundColor Red
         Write-LogMessage "Adobe Reader installatie mislukt: $errorMsg"
         Show-Progress -Activity "Adobe Reader" -Status "Mislukt" -PercentComplete 100
         return $false
@@ -717,19 +835,23 @@ function Open-IndexFile {
         Write-Host "`nIndex bestand downloaden en openen..." -ForegroundColor Yellow
         Write-LogMessage "Start download en openen index bestand"
 
-        Show-Progress -Activity "Index Bestand" -Status "Downloaden..." -PercentComplete 20
+        Show-Progress -Activity "Index Bestand" -Status "Voorbereiden..." -PercentComplete 10
         
         # Create temp directory if it doesn't exist
-        $tempDir = Join-Path $env:TEMP "IndexFile"
+        $tempDir = Join-Path $env:TEMP "IndexDownload"
         if (-not (Test-Path $tempDir)) {
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
         }
+
+        Show-Progress -Activity "Index Bestand" -Status "Downloaden..." -PercentComplete 30
         
         # Download index file
-        $indexUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/index_updated.html"
-        $indexPath = Join-Path $tempDir "index_updated.html"
+        $indexUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/index.html"
+        $indexPath = Join-Path $tempDir "index.html"
         
-        Show-Progress -Activity "Index Bestand" -Status "Bestand ophalen..." -PercentComplete 40
+        Write-Host "`nIndex bestand downloaden..." -ForegroundColor Cyan
+        Write-LogMessage "Index bestand downloaden"
+        
         try {
             $webClient = New-Object System.Net.WebClient
             $webClient.DownloadFile($indexUrl, $indexPath)
@@ -737,37 +859,23 @@ function Open-IndexFile {
         catch {
             throw "Index bestand download mislukt: $($_.Exception.Message)"
         }
-        
-        Show-Progress -Activity "Index Bestand" -Status "Bestand controleren..." -PercentComplete 60
-        # Verify file exists and has content
-        if (-not (Test-Path $indexPath)) {
-            throw "Index bestand niet gevonden na download"
-        }
-        
-        $fileInfo = Get-Item $indexPath
-        if ($fileInfo.Length -eq 0) {
-            throw "Gedownload bestand is leeg"
-        }
 
-        Show-Progress -Activity "Index Bestand" -Status "Chrome openen..." -PercentComplete 80
-        # Open in Chrome minimized
-        $chromePath = "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe"
-        $chromePath86 = "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+        Show-Progress -Activity "Index Bestand" -Status "Chrome starten..." -PercentComplete 80
         
-        $chromeProcess = $null
-        if (Test-Path $chromePath) {
-            $chromeProcess = Start-Process $chromePath -ArgumentList $indexPath -WindowStyle Minimized -PassThru
-        }
-        elseif (Test-Path $chromePath86) {
-            $chromeProcess = Start-Process $chromePath86 -ArgumentList $indexPath -WindowStyle Minimized -PassThru
-        }
-        else {
-            throw "Google Chrome niet gevonden"
+        # Open index.html in Chrome
+        Start-Process "chrome.exe" -ArgumentList $indexPath
+        Start-Sleep -Seconds 2
+
+        # Minimize Chrome window
+        $chrome = Get-Process | Where-Object { $_.MainWindowTitle -like "*index.html*" }
+        if ($chrome) {
+            $null = [System.Runtime.InteropServices.Marshal]::GetActiveWindow()
+            [void][System.Runtime.InteropServices.Marshal]::ShowWindow($chrome.MainWindowHandle, 2)
         }
 
         Show-Progress -Activity "Index Bestand" -Status "Voltooid" -PercentComplete 100
         Write-Host "`nIndex bestand succesvol geopend in Chrome (geminimaliseerd)" -ForegroundColor Green
-        Write-LogMessage "Index bestand succesvol geopend"
+        Write-LogMessage "Index bestand succesvol geopend in Chrome (geminimaliseerd)"
         
         return $true
     }
