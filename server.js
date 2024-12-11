@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const port = 3001;
+const port = 3005;
 
 // Configure multer for handling file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -244,4 +244,6 @@ app.listen(port, () => {
     console.log(`Server draait op http://localhost:${port}`);
     console.log('Klaar om PDF-bestanden te verwerken en e-mails te verzenden');
 });
+
+
 

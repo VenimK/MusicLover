@@ -206,7 +206,7 @@ function Start-NodeServer {
         # Update port in server.js to 3001
         $serverContent = Get-Content $serverPath -Raw
         if ($serverContent -match 'const port = \d+;') {
-            $serverContent = $serverContent -replace 'const port = \d+;', 'const port = 3001;'
+            $serverContent = $serverContent -replace 'const port = \d+;', 'const port = 3005;'
             $serverContent | Set-Content $serverPath -Force
             Write-Host "Server poort bijgewerkt naar 3001" -ForegroundColor Green
         }
