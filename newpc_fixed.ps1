@@ -919,8 +919,6 @@ function Open-IndexFile {
         Write-Host "* Klantnaam"
         Write-Host "* Telefoonnummer"
         Write-Host "* E-mailadres"
-        Write-Host "* Windows versie"
-        Write-Host "* Datum van installatie"
         Write-Host "--------------------------------`n" -ForegroundColor Cyan
 
         # Get PC Serial Number
