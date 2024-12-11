@@ -863,16 +863,13 @@ function Open-IndexFile {
         Show-Progress -Activity "Index Bestand" -Status "Chrome openen..." -PercentComplete 80
         
         # Start Chrome minimized
-        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $startInfo.FileName = "chrome.exe"
-        $startInfo.Arguments = $indexPath
-        $startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Minimized
-        
-        $process = [System.Diagnostics.Process]::Start($startInfo)
-        Start-Sleep -Seconds 2
-
-        # Ensure PowerShell window is in focus
-        $null = [System.Runtime.InteropServices.Marshal]::GetActiveWindow()
+        try {
+            Start-Process chrome.exe -ArgumentList $indexPath -WindowStyle Minimized
+            Start-Sleep -Seconds 2
+        }
+        catch {
+            throw "Chrome starten mislukt: $($_.Exception.Message)"
+        }
 
         Show-Progress -Activity "Index Bestand" -Status "Gereed" -PercentComplete 100
         Write-Host "`nIndex bestand succesvol geopend in Chrome (geminimaliseerd)" -ForegroundColor Green
