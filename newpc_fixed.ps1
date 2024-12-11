@@ -359,24 +359,48 @@ function Install-WindowsUpdateModule {
 
 # Function to check and install Windows Updates
 function Install-WindowsUpdates {
-    Write-Host "Windows Updates controleren en installeren..." -ForegroundColor Yellow
-    Write-LogMessage "Windows Updates proces gestart"
-    
     try {
-        if (-not (Install-WindowsUpdateModule)) {
-            throw "Kon Windows Update module niet installeren"
+        Write-Host "Windows Updates installeren..." -ForegroundColor Yellow
+        Write-LogMessage "Start Windows Updates installatie"
+        
+        # Install PSWindowsUpdate module if not present
+        if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+            Install-WindowsUpdateModule
         }
-
-        # Check for all updates including optional ones
-        Write-Host "Beschikbare updates controleren (inclusief optionele updates)..." -ForegroundColor Yellow
         
-        # Get regular updates
-        $regularUpdates = Get-WindowsUpdate
+        # Import the module
+        Import-Module PSWindowsUpdate
         
-        # Get optional updates
-        $optionalUpdates = Get-WindowsUpdate -IsHidden
+        # Get updates in parallel
+        Write-Host "Updates zoeken..." -ForegroundColor Yellow
         
-        $totalUpdates = $regularUpdates.Count + $optionalUpdates.Count
+        $regularJob = Start-Job -ScriptBlock { 
+            Import-Module PSWindowsUpdate
+            Get-WindowsUpdate 
+        }
+        
+        $optionalJob = Start-Job -ScriptBlock { 
+            Import-Module PSWindowsUpdate
+            Get-WindowsUpdate -IsHidden 
+        }
+        
+        # Wait for both jobs to complete with timeout
+        $timeout = 120 # 2 minutes timeout
+        $completed = Wait-Job -Job $regularJob, $optionalJob -Timeout $timeout
+        
+        if ($completed -notcontains $regularJob -or $completed -notcontains $optionalJob) {
+            Write-Host "Timeout bij zoeken naar updates. Doorgaan met gevonden updates..." -ForegroundColor Yellow
+            Write-LogMessage "Timeout bij zoeken naar updates"
+        }
+        
+        $regularUpdates = Receive-Job -Job $regularJob -ErrorAction SilentlyContinue
+        $optionalUpdates = Receive-Job -Job $optionalJob -ErrorAction SilentlyContinue
+        
+        Remove-Job -Job $regularJob, $optionalJob -Force
+        
+        $regularCount = if ($regularUpdates) { @($regularUpdates).Count } else { 0 }
+        $optionalCount = if ($optionalUpdates) { @($optionalUpdates).Count } else { 0 }
+        $totalUpdates = $regularCount + $optionalCount
 
         if ($totalUpdates -eq 0) {
             Write-Host "Geen updates beschikbaar (regulier of optioneel)" -ForegroundColor Green
@@ -385,21 +409,55 @@ function Install-WindowsUpdates {
         }
 
         Write-Host "Gevonden updates:" -ForegroundColor Yellow
-        Write-Host "- Reguliere updates: $($regularUpdates.Count)" -ForegroundColor Yellow
-        Write-Host "- Optionele updates: $($optionalUpdates.Count)" -ForegroundColor Yellow
-        Write-LogMessage "Gevonden: $($regularUpdates.Count) reguliere updates, $($optionalUpdates.Count) optionele updates"
+        Write-Host "- Reguliere updates: $regularCount" -ForegroundColor Yellow
+        Write-Host "- Optionele updates: $optionalCount" -ForegroundColor Yellow
+        Write-LogMessage "Gevonden: $regularCount reguliere updates, $optionalCount optionele updates"
 
-        # Install regular updates
-        if ($regularUpdates.Count -gt 0) {
+        # Install updates concurrently
+        $jobs = @()
+
+        # Start regular updates
+        if ($regularCount -gt 0) {
             Write-Host "Reguliere updates worden geinstalleerd..." -ForegroundColor Yellow
-            Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IgnoreReboot -Confirm:$false -Verbose | Out-File (Join-Path $env:TEMP "Windows_Regular_Updates_Log.txt")
+            $jobs += Start-Job -ScriptBlock {
+                param($LogPath)
+                Import-Module PSWindowsUpdate
+                Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IgnoreReboot -Confirm:$false -Verbose *> $LogPath
+            } -ArgumentList (Join-Path $env:TEMP "Windows_Regular_Updates_Log.txt")
         }
 
-        # Install optional updates
-        if ($optionalUpdates.Count -gt 0) {
+        # Start optional updates
+        if ($optionalCount -gt 0) {
             Write-Host "Optionele updates worden geinstalleerd..." -ForegroundColor Yellow
-            Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IsHidden -IgnoreReboot -Confirm:$false -Verbose | Out-File (Join-Path $env:TEMP "Windows_Optional_Updates_Log.txt")
+            $jobs += Start-Job -ScriptBlock {
+                param($LogPath)
+                Import-Module PSWindowsUpdate
+                Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IsHidden -IgnoreReboot -Confirm:$false -Verbose *> $LogPath
+            } -ArgumentList (Join-Path $env:TEMP "Windows_Optional_Updates_Log.txt")
         }
+
+        # Monitor progress
+        $totalJobs = $jobs.Count
+        while ($jobs | Where-Object { $_.State -eq 'Running' }) {
+            $completed = ($jobs | Where-Object { $_.State -eq 'Completed' }).Count
+            $progress = [math]::Round(($completed / $totalJobs) * 100)
+            
+            Show-Progress -Activity "Windows Updates" -Status "Installeren... ($completed/$totalJobs taken voltooid)" -PercentComplete $progress
+            Start-Sleep -Seconds 2
+        }
+
+        # Check for any failed jobs
+        $failedJobs = $jobs | Where-Object { $_.State -eq 'Failed' }
+        if ($failedJobs) {
+            foreach ($job in $failedJobs) {
+                $error = Receive-Job -Job $job -ErrorAction SilentlyContinue
+                Write-LogMessage "Update taak mislukt: $error"
+            }
+            Write-Host "Sommige updates zijn mogelijk niet geinstalleerd" -ForegroundColor Yellow
+        }
+
+        # Cleanup jobs
+        $jobs | Remove-Job -Force
         
         Write-Host "Alle Windows Updates succesvol geinstalleerd (regulier en optioneel)" -ForegroundColor Green
         Write-LogMessage "Alle Windows Updates succesvol geinstalleerd"
@@ -794,260 +852,6 @@ function Install-Winget {
     }
 }
 
-# Function to install Adobe Reader
-function Install-AdobeReader {
-    try {
-        Write-Host "`nAdobe Reader installatie controleren..." -ForegroundColor Yellow
-        Write-LogMessage "Start Adobe Reader installatie check"
-
-        # Check multiple registry locations for Adobe Reader
-        $paths = @(
-            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
-            "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
-        )
-        
-        $adobeInstalled = $false
-        foreach ($path in $paths) {
-            if (Test-Path $path) {
-                $installed = Get-ItemProperty $path | 
-                    Where-Object { 
-                        $_.DisplayName -like "*Adobe Acrobat*" -or 
-                        $_.DisplayName -like "*Adobe Reader*" -or
-                        $_.DisplayName -like "*Acrobat Reader*"
-                    }
-                if ($installed) {
-                    $adobeInstalled = $true
-                    $version = $installed.DisplayName
-                    break
-                }
-            }
-        }
-
-        # Also check common installation paths
-        $commonPaths = @(
-            "$env:ProgramFiles\Adobe\Acrobat DC\Acrobat\Acrobat.exe",
-            "$env:ProgramFiles\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
-            "${env:ProgramFiles(x86)}\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
-            "$env:ProgramFiles\Adobe\Reader 11.0\Reader\AcroRd32.exe",
-            "${env:ProgramFiles(x86)}\Adobe\Reader 11.0\Reader\AcroRd32.exe"
-        )
-
-        foreach ($path in $commonPaths) {
-            if (Test-Path $path) {
-                $adobeInstalled = $true
-                break
-            }
-        }
-
-        if ($adobeInstalled) {
-            Write-Host "Adobe Reader is al geinstalleerd. Installatie wordt overgeslagen." -ForegroundColor Green
-            Write-LogMessage "Adobe Reader is al geinstalleerd"
-            Show-Progress -Activity "Adobe Reader" -Status "Reeds geinstalleerd" -PercentComplete 100
-            return $true
-        }
-
-        Show-Progress -Activity "Adobe Reader" -Status "Voorbereiden..." -PercentComplete 10
-        
-        # Create temp directory
-        $userTemp = [System.IO.Path]::GetTempPath()
-        $tempDir = Join-Path $userTemp "AdobeReaderInstall"
-        if (-not (Test-Path $tempDir)) {
-            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-        }
-
-        Show-Progress -Activity "Adobe Reader" -Status "Downloaden..." -PercentComplete 20
-        
-        # Download Adobe Reader
-        $adobeUrl = "https://admdownload.adobe.com/rdcm/installers/live/readerdc64.exe"
-        $installerPath = Join-Path $tempDir "AdobeReaderDC.exe"
-        
-        Show-Progress -Activity "Adobe Reader" -Status "Bestand ophalen..." -PercentComplete 40
-        try {
-            $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($adobeUrl, $installerPath)
-        }
-        catch {
-            throw "Adobe Reader download mislukt: $($_.Exception.Message)"
-        }
-
-        Show-Progress -Activity "Adobe Reader" -Status "Installeren..." -PercentComplete 50
-        Write-Host "`nAdobe Reader installeren..." -ForegroundColor Cyan
-        Write-LogMessage "Adobe Reader installeren"
-        $arguments = "/sAll /rs /msi /norestart /quiet EULA_ACCEPT=YES"
-        
-        # Start installation process with admin rights
-        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $pinfo.FileName = $installerPath
-        $pinfo.Arguments = $arguments
-        $pinfo.UseShellExecute = $true
-        $pinfo.Verb = "runas"
-        
-        $process = New-Object System.Diagnostics.Process
-        $process.StartInfo = $pinfo
-        $process.Start() | Out-Null
-        $process.WaitForExit()
-
-        if ($process.ExitCode -ne 0) {
-            throw "Adobe Reader installatie mislukt met exit code: $($process.ExitCode)"
-        }
-
-        Show-Progress -Activity "Adobe Reader" -Status "PDF associatie instellen..." -PercentComplete 80
-        
-        # Set Adobe Reader as default PDF application
-        try {
-            $assocPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice"
-            if (Test-Path $assocPath) {
-                Remove-Item -Path $assocPath -Force -Recurse
-            }
-            Start-Process "cmd.exe" -ArgumentList "/c ftype AcroExch.Document.DC=`"$env:ProgramFiles\Adobe\Acrobat DC\Acrobat\Acrobat.exe`" `"%1`"" -Verb runas -Wait
-            Start-Process "cmd.exe" -ArgumentList "/c assoc .pdf=AcroExch.Document.DC" -Verb runas -Wait
-        }
-        catch {
-            Write-LogMessage "Waarschuwing: Kon PDF associatie niet instellen: $($_.Exception.Message)"
-            # Continue even if association fails
-        }
-
-        # Cleanup
-        Show-Progress -Activity "Adobe Reader" -Status "Opruimen..." -PercentComplete 90
-        Start-Sleep -Seconds 2  # Wait a bit before cleanup
-        try {
-            if (Test-Path $installerPath) {
-                Remove-Item $installerPath -Force -ErrorAction Stop
-            }
-            if (Test-Path $tempDir) {
-                Remove-Item $tempDir -Force -Recurse -ErrorAction Stop
-            }
-        }
-        catch {
-            Write-LogMessage "Cleanup waarschuwing: $($_.Exception.Message)"
-            # Continue even if cleanup fails
-        }
-
-        Show-Progress -Activity "Adobe Reader" -Status "Voltooid" -PercentComplete 100
-        Write-Host "`nAdobe Reader installatie voltooid" -ForegroundColor Green
-        Write-LogMessage "Adobe Reader installatie voltooid"
-        return $true
-    }
-    catch {
-        $errorMsg = $_.Exception.Message
-        Write-Host "`nAdobe Reader installatie mislukt: $errorMsg" -ForegroundColor Red
-        Write-LogMessage "Adobe Reader installatie mislukt: $errorMsg"
-        Show-Progress -Activity "Adobe Reader" -Status "Mislukt" -PercentComplete 100
-        return $false
-    }
-}
-
-# Function to optimize power settings
-function Set-OptimalPowerSettings {
-    try {
-        Write-Host "Energie-instellingen optimaliseren..." -ForegroundColor Yellow
-        Write-LogMessage "Energie-instellingen aanpassen gestart"
-
-        # Set power plan to High Performance
-        $powerPlan = Get-WmiObject -Namespace root\cimv2\power -Class Win32_PowerPlan | Where-Object { $_.ElementName -eq "High Performance" }
-        if ($powerPlan) {
-            $powerPlan.Activate()
-            Write-Host "High Performance energieplan geactiveerd" -ForegroundColor Green
-        }
-
-        # Configure power settings using powercfg
-        # Never turn off display when plugged in
-        powercfg /change monitor-timeout-ac 0
-        powercfg /change monitor-timeout-dc 0
-        # Never put computer to sleep when plugged in
-        powercfg /change standby-timeout-ac 0
-        powercfg /change standby-timeout-dc 0
-        # Never turn off hard disk
-        powercfg /change disk-timeout-ac 0
-        powercfg /change disk-timeout-dc 0
-        # Disable hibernate
-        powercfg /hibernate off
-        # Disable USB selective suspend
-        powercfg /setacvalueindex scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
-        # Apply changes
-        powercfg /setactive scheme_current
-
-        Write-Host "Energie-instellingen succesvol aangepast" -ForegroundColor Green
-        Write-LogMessage "Energie-instellingen succesvol aangepast"
-    }
-    catch {
-        Write-LogMessage "Energie-instellingen aanpassen mislukt: $($_.Exception.Message)"
-        Write-Host "Energie-instellingen aanpassen mislukt" -ForegroundColor Red
-    }
-}
-
-# Function to install Winget
-function Install-Winget {
-    try {
-        Write-Host "`nWinget installatie starten..." -ForegroundColor Yellow
-        Write-LogMessage "Start Winget installatie"
-
-        # Start progress
-        Show-Progress -Activity "Winget Installatie" -Status "Voorbereiden..." -PercentComplete 0
-
-        # Controleer of winget al is geinstalleerd
-        $hasWinget = Get-AppxPackage -Name Microsoft.DesktopAppInstaller
-
-        if ($hasWinget) {
-            Show-Progress -Activity "Winget Installatie" -Status "Verwijderen oude versie..." -PercentComplete 20
-            Write-Host "`nBestaande Winget installatie verwijderen..." -ForegroundColor Yellow
-            Write-LogMessage "Verwijderen bestaande Winget installatie"
-            Get-AppxPackage *Microsoft.DesktopAppInstaller* | Remove-AppxPackage
-            Start-Sleep -Seconds 2
-        }
-
-        # Download en installeer de nieuwste versie van winget
-        Show-Progress -Activity "Winget Installatie" -Status "Downloaden..." -PercentComplete 40
-        Write-Host "`nNieuwste Winget installer downloaden..." -ForegroundColor Cyan
-        Write-LogMessage "Downloaden Winget installer"
-        $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-        $installerPath = Join-Path $env:TEMP "Microsoft.DesktopAppInstaller.msixbundle"
-
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($wingetUrl, $installerPath)
-
-        Show-Progress -Activity "Winget Installatie" -Status "Installeren..." -PercentComplete 60
-        Write-Host "`nWinget installeren..." -ForegroundColor Cyan
-        Write-LogMessage "Installeren Winget"
-        Add-AppxPackage $installerPath
-
-        # Ruim het installatiebestand op
-        Show-Progress -Activity "Winget Installatie" -Status "Opruimen..." -PercentComplete 80
-        if (Test-Path $installerPath) {
-            Remove-Item $installerPath
-        }
-
-        # Ververs omgevingsvariabelen
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-
-        # Verifieer installatie
-        Show-Progress -Activity "Winget Installatie" -Status "Verificatie..." -PercentComplete 90
-        Write-Host "`nWinget installatie verifieren..." -ForegroundColor Cyan
-        Write-LogMessage "Verifieren Winget installatie"
-        $wingetVersion = winget --version
-        
-        # Accept Microsoft Store agreements
-        Show-Progress -Activity "Winget Installatie" -Status "Configureren..." -PercentComplete 95
-        Write-Host "`nMicrosoft Store voorwaarden accepteren..." -ForegroundColor Yellow
-        winget settings --enable LocalManifestFiles
-        winget settings --enable MSStore
-        winget source reset --force msstore
-        
-        Show-Progress -Activity "Winget Installatie" -Status "Voltooid" -PercentComplete 100
-        Write-Host "`nWinget succesvol geinstalleerd! Versie: $wingetVersion" -ForegroundColor Green
-        Write-LogMessage "Winget succesvol geinstalleerd: $wingetVersion"
-        
-        return $true
-    }
-    catch {
-        $errorMsg = $_.Exception.Message
-        Write-Host "`nWinget installatie mislukt: $errorMsg" -ForegroundColor Red
-        Write-LogMessage "Winget installatie mislukt: $errorMsg"
-        Show-Progress -Activity "Winget Installatie" -Status "Mislukt" -PercentComplete 100
-        return $false
-    }
-}
-
 # Function to install Belgian eID software
 function Install-BelgianEid {
     try {
@@ -1088,27 +892,17 @@ Als de automatische installatie niet werkt, hier zijn de directe download links:
     }
 }
 
-Add-Type @"
-    using System;
-    using System.Runtime.InteropServices;
-    public class Window {
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool SetForegroundWindow(IntPtr hWnd);
-        
-        [DllImport("user32.dll")]
-        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        
-        [DllImport("kernel32.dll")]
-        public static extern IntPtr GetConsoleWindow();
+# Function to get PC serial number
+function Get-PCSerialNumber {
+    try {
+        $serialNumber = (Get-WmiObject -Class Win32_Bios).SerialNumber
+        return $serialNumber.Trim()
     }
-"@
-
-# Function to focus PowerShell window
-function Set-PowerShellWindowFocus {
-    $PSWindow = [Window]::GetConsoleWindow()
-    [Window]::ShowWindow($PSWindow, 5)
-    [Window]::SetForegroundWindow($PSWindow)
+    catch {
+        Write-Host "Fout bij ophalen serienummer: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Fout bij ophalen serienummer: $($_.Exception.Message)"
+        return "Niet beschikbaar"
+    }
 }
 
 # Function to download and open index file
@@ -1119,6 +913,20 @@ function Open-IndexFile {
 
         Show-Progress -Activity "Index Bestand" -Status "Voorbereiden..." -PercentComplete 10
         
+        Write-Host "`nVul de volgende klantgegevens in:" -ForegroundColor Cyan
+        Write-Host "--------------------------------" -ForegroundColor Cyan
+        Write-Host "* Klantnummer"
+        Write-Host "* Klantnaam"
+        Write-Host "* Telefoonnummer"
+        Write-Host "* E-mailadres"
+        Write-Host "* Windows versie"
+        Write-Host "* Datum van installatie"
+        Write-Host "--------------------------------`n" -ForegroundColor Cyan
+
+        # Get PC Serial Number
+        $serialNumber = Get-PCSerialNumber
+        Write-Host "PC Serienummer: $serialNumber" -ForegroundColor Cyan
+
         # Create temp directory if it doesn't exist
         $tempDir = Join-Path $env:TEMP "IndexDownload"
         if (-not (Test-Path $tempDir)) {
@@ -1136,7 +944,27 @@ function Open-IndexFile {
         
         try {
             $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($indexUrl, $indexPath)
+            $content = $webClient.DownloadString($indexUrl)
+            
+            # Inject JavaScript to set serial number
+            $injectedScript = @"
+<script>
+    window.addEventListener('load', function() {
+        var serialInput = document.getElementById('client-serial');
+        if (serialInput) {
+            serialInput.value = '$serialNumber';
+            serialInput.readOnly = true;
+        }
+    });
+</script>
+</head>
+"@
+            
+            # Insert the script before the closing head tag
+            $content = $content -replace '</head>', $injectedScript
+            
+            # Save modified content
+            [System.IO.File]::WriteAllText($indexPath, $content)
         }
         catch {
             throw "Index bestand download mislukt: $($_.Exception.Message)"
@@ -1166,6 +994,13 @@ function Open-IndexFile {
         Show-Progress -Activity "Index Bestand" -Status "Mislukt" -PercentComplete 100
         return $false
     }
+}
+
+# Function to focus PowerShell window
+function Set-PowerShellWindowFocus {
+    $PSWindow = [Window]::GetConsoleWindow()
+    [Window]::ShowWindow($PSWindow, 5)
+    [Window]::SetForegroundWindow($PSWindow)
 }
 
 # Main script execution
@@ -1250,3 +1085,19 @@ catch {
     Write-LogMessage "Script gefaald: $($_.Exception.Message)"
     exit 1
 }
+
+Add-Type @"
+    using System;
+    using System.Runtime.InteropServices;
+    public class Window {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+        
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr GetConsoleWindow();
+    }
+"@

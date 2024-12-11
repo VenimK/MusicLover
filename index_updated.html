@@ -185,6 +185,10 @@
                         <label for="client-email">E-mailadres</label>
                         <input type="email" id="client-email" name="client-email" placeholder="uw@email.com" required>
                     </div>
+                    <div class="input-group">
+                        <label for="client-serial">Serienummer PC</label>
+                        <input type="text" id="client-serial" name="client-serial" required>
+                    </div>
                 </div>
 
                 <!-- Windows/Microsoft Account -->
@@ -276,6 +280,23 @@
         // Initialize jsPDF
         window.jsPDF = window.jspdf.jsPDF;
 
+        // Function to get URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        // Fill serial number from URL parameter when page loads
+        window.addEventListener('load', function() {
+            const serialNumber = getUrlParameter('serial');
+            if (serialNumber) {
+                document.getElementById('client-serial').value = serialNumber;
+                document.getElementById('client-serial').readOnly = true; // Make it read-only since it's auto-filled
+            }
+        });
+
         function generatePDF(data) {
             // Create new PDF document
             const doc = new jsPDF();
@@ -298,44 +319,45 @@
             doc.text(`Adres: ${data.clientInfo.address}`, 20, 110);
             doc.text(`Postcode: ${data.clientInfo.postal}`, 20, 120);
             doc.text(`Gemeente: ${data.clientInfo.city}`, 20, 130);
+            doc.text(`Serienummer PC: ${data.clientInfo.serial}`, 20, 140);
             
             // Add Microsoft account information
-            doc.text('Microsoft Account:', 15, 150);
-            doc.text(`E-mail: ${data.microsoft.email}`, 20, 160);
-            doc.text(`Wachtwoord: ${data.microsoft.password}`, 20, 170);
+            doc.text('Microsoft Account:', 15, 160);
+            doc.text(`E-mail: ${data.microsoft.email}`, 20, 170);
+            doc.text(`Wachtwoord: ${data.microsoft.password}`, 20, 180);
             
             // Add Norton account information if provided
             if (data.norton.email || data.norton.password) {
-                doc.text('Norton Account:', 15, 190);
-                doc.text(`E-mail: ${data.norton.email}`, 20, 200);
-                doc.text(`Wachtwoord: ${data.norton.password}`, 20, 210);
+                doc.text('Norton Account:', 15, 200);
+                doc.text(`E-mail: ${data.norton.email}`, 20, 210);
+                doc.text(`Wachtwoord: ${data.norton.password}`, 20, 220);
             }
             
             // Add Gmail account information if provided
             if (data.gmail.email || data.gmail.password) {
-                doc.text('Gmail Account:', 15, 230);
-                doc.text(`E-mail: ${data.gmail.email}`, 20, 240);
-                doc.text(`Wachtwoord: ${data.gmail.password}`, 20, 250);
+                doc.text('Gmail Account:', 15, 240);
+                doc.text(`E-mail: ${data.gmail.email}`, 20, 250);
+                doc.text(`Wachtwoord: ${data.gmail.password}`, 20, 260);
             }
             
             // Add Telenet account information if provided
             if (data.telenet.email || data.telenet.password) {
-                doc.text('Telenet Account:', 15, 270);
-                doc.text(`E-mail: ${data.telenet.email}`, 20, 280);
-                doc.text(`Wachtwoord: ${data.telenet.password}`, 20, 290);
+                doc.text('Telenet Account:', 15, 280);
+                doc.text(`E-mail: ${data.telenet.email}`, 20, 290);
+                doc.text(`Wachtwoord: ${data.telenet.password}`, 20, 300);
             }
             
             // Add Proximus account information if provided
             if (data.proximus.email || data.proximus.password) {
-                doc.text('Proximus Account:', 15, 310);
-                doc.text(`E-mail: ${data.proximus.email}`, 20, 320);
-                doc.text(`Wachtwoord: ${data.proximus.password}`, 20, 330);
+                doc.text('Proximus Account:', 15, 320);
+                doc.text(`E-mail: ${data.proximus.email}`, 20, 330);
+                doc.text(`Wachtwoord: ${data.proximus.password}`, 20, 340);
             }
             
             // Add footer with date
             const date = new Date().toLocaleDateString('nl-BE');
             doc.setFontSize(10);
-            doc.text(`Gegenereerd op: ${date}`, 15, 340);
+            doc.text(`Gegenereerd op: ${date}`, 15, 350);
             
             // Save the PDF with Klantnummer
             const klantnummer = data.clientInfo.number || 'unknown';
@@ -383,7 +405,8 @@
                     address: document.getElementById('client-address').value,
                     postal: document.getElementById('client-postal').value,
                     city: document.getElementById('client-city').value,
-                    email: document.getElementById('client-email').value
+                    email: document.getElementById('client-email').value,
+                    serial: document.getElementById('client-serial').value
                 },
                 microsoft: {
                     email: document.getElementById('microsoft-email').value,
