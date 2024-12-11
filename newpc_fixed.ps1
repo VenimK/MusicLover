@@ -1001,6 +1001,91 @@ function Set-PowerShellWindowFocus {
     [Window]::SetForegroundWindow($PSWindow)
 }
 
+# Function to handle Extra Software Pack installations
+function Install-ExtraSoftwarePack {
+    param (
+        [switch]$InstallOffice,
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("O365BusinessRetail", "O365ProPlusRetail", "ProPlus2021Retail", "Standard2021Retail")]
+        [string]$OfficeVersion = "O365BusinessRetail"
+    )
+
+    Write-Host "`nExtra Software Pack installatie starten..." -ForegroundColor Yellow
+    Write-LogMessage "Start Extra Software Pack installatie"
+
+    if ($InstallOffice) {
+        # Install Microsoft Office
+        Write-Host "Microsoft Office $OfficeVersion wordt geïnstalleerd..." -ForegroundColor Yellow
+        if (-not (Install-MicrosoftOffice -ProductId $OfficeVersion)) {
+            Write-Host "Microsoft Office installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
+            Write-LogMessage "Microsoft Office installatie mislukt, script gaat door"
+        }
+    }
+}
+
+# Function to install Microsoft Office using OTP
+function Install-MicrosoftOffice {
+    param (
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("O365BusinessRetail", "O365ProPlusRetail", "ProPlus2021Retail", "Standard2021Retail")]
+        [string]$ProductId = "O365BusinessRetail",
+        
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("x64", "x86")]
+        [string]$Architecture = "x64"
+    )
+
+    try {
+        Write-Host "`nMicrosoft Office installatie starten..." -ForegroundColor Yellow
+        Write-LogMessage "Start Microsoft Office installatie"
+        
+        Show-Progress -Activity "Office Installatie" -Status "Voorbereiden..." -PercentComplete 10
+        
+        # Path to Office Tool Plus executable
+        $otpPath = "C:\Program Files\Office Tool\Office Tool Plus.exe"
+        
+        if (-not (Test-Path $otpPath)) {
+            throw "Office Tool Plus niet gevonden op $otpPath"
+        }
+
+        Show-Progress -Activity "Office Installatie" -Status "Office $ProductId installeren..." -PercentComplete 30
+
+        # Build the command arguments
+        $arguments = @(
+            "/addProduct $ProductId",
+            "/channel Current",
+            "/architecture $Architecture",
+            "/language nl-nl,en-us",
+            "/download",
+            "/install",
+            "/quiet"
+        )
+
+        # Execute Office Tool Plus
+        $process = Start-Process -FilePath $otpPath -ArgumentList $arguments -Wait -NoNewWindow -PassThru
+        
+        if ($process.ExitCode -ne 0) {
+            throw "Office Tool Plus installatie proces gefaald met exit code: $($process.ExitCode)"
+        }
+
+        Show-Progress -Activity "Office Installatie" -Status "Activatie starten..." -PercentComplete 80
+        
+        # Activate Office
+        Start-Process -FilePath $otpPath -ArgumentList "/activate" -Wait -NoNewWindow
+        
+        Show-Progress -Activity "Office Installatie" -Status "Voltooid" -PercentComplete 100
+        Write-Host "Microsoft Office installatie voltooid" -ForegroundColor Green
+        Write-LogMessage "Microsoft Office installatie succesvol"
+        return $true
+    }
+    catch {
+        Write-Host "Microsoft Office installatie mislukt: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Microsoft Office installatie mislukt: $($_.Exception.Message)"
+        Show-Progress -Activity "Office Installatie" -Status "Mislukt" -PercentComplete 100
+        return $false
+    }
+}
+
 # Main script execution
 try {
     Write-Host "=== Windows PC Setup Script ===" -ForegroundColor Cyan
@@ -1070,8 +1155,33 @@ try {
         throw "Server starten mislukt"
     }
 
-    # Stap 11: Index openen
-    Write-Host "`nStap 11: Index openen..." -ForegroundColor Yellow
+    # Stap 11: Extra Software Pack
+    Write-Host "`nStap 11: Extra Software Pack controleren..." -ForegroundColor Yellow
+    $installOffice = Read-Host "Wilt u Microsoft Office installeren? (J/N)"
+    if ($installOffice -eq 'J') {
+        Write-Host "`nBeschikbare Office versies:"
+        Write-Host "1. Microsoft 365 Business"
+        Write-Host "2. Microsoft 365 Enterprise"
+        Write-Host "3. Office 2021 Professional Plus"
+        Write-Host "4. Office 2021 Standard"
+        
+        $officeVersions = @{
+            1 = "O365BusinessRetail"
+            2 = "O365ProPlusRetail"
+            3 = "ProPlus2021Retail"
+            4 = "Standard2021Retail"
+        }
+        
+        do {
+            $versionChoice = Read-Host "Kies een Office versie (1-4)"
+        } while (-not ($officeVersions.ContainsKey([int]$versionChoice)))
+        
+        $selectedVersion = $officeVersions[[int]$versionChoice]
+        Install-ExtraSoftwarePack -InstallOffice -OfficeVersion $selectedVersion
+    }
+
+    # Stap 12: Index openen
+    Write-Host "`nStap 12: Index openen..." -ForegroundColor Yellow
     Open-IndexFile
 
     Write-Host "`nSetup succesvol afgerond!" -ForegroundColor Green
