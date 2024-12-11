@@ -201,59 +201,115 @@ function Install-WingetSoftware {
         
         # Install software using winget
         $softwareList = @(
-            "Google.Chrome",
-            "7zip.7zip",
-            "VideoLAN.VLC",
-            "BelgianGovernment.Belgium-eIDmiddleware",
-            "BelgianGovernment.eIDViewer"
+            @{
+                Id = "Google.Chrome"
+                RegPaths = @(
+                    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+                    "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+                )
+            },
+            @{
+                Id = "7zip.7zip"
+                RegPaths = @(
+                    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{23170F69-40C1-2702-2102-000001000000}",
+                    "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{23170F69-40C1-2702-2102-000001000000}"
+                )
+            },
+            @{
+                Id = "VideoLAN.VLC"
+                RegPaths = @(
+                    "HKLM:\SOFTWARE\VideoLAN\VLC",
+                    "HKLM:\SOFTWARE\Wow6432Node\VideoLAN\VLC",
+                    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VLC media player",
+                    "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\VLC media player"
+                )
+                ExePaths = @(
+                    "$env:ProgramFiles\VideoLAN\VLC\vlc.exe",
+                    "${env:ProgramFiles(x86)}\VideoLAN\VLC\vlc.exe"
+                )
+            },
+            @{
+                Id = "BelgianGovernment.Belgium-eIDmiddleware"
+                RegPaths = @(
+                    "HKLM:\SOFTWARE\Belgium Identity Card",
+                    "HKLM:\SOFTWARE\Wow6432Node\Belgium Identity Card"
+                )
+            },
+            @{
+                Id = "BelgianGovernment.eIDViewer"
+                RegPaths = @(
+                    "HKLM:\SOFTWARE\Belgian eID Viewer",
+                    "HKLM:\SOFTWARE\Wow6432Node\Belgian eID Viewer"
+                )
+            }
         )
         
         $totalSteps = $softwareList.Count
         $currentStep = 0
-        $progress = 0
-        $increment = 90 / $totalSteps
         
         foreach ($software in $softwareList) {
             $currentStep++
-            $progress += $increment
+            $progress = [math]::Round(($currentStep / $totalSteps) * 100)
             
-            # Calculate progress percentage for ASCII bar
-            $percentComplete = [math]::Round(($currentStep / $totalSteps) * 100)
-            $progressBar = "[" + ("█" * [math]::Floor($percentComplete/2)) + (" " * (50 - [math]::Floor($percentComplete/2))) + "]"
+            Show-Progress -Activity "Winget" -Status "Controleren $($software.Id)..." -PercentComplete $progress
             
-            Write-Host "`r$progressBar $percentComplete% " -NoNewline -ForegroundColor Green
-            Show-Progress -Activity "Winget" -Status "Controleren $software..." -PercentComplete (10 + $progress)
+            Write-Host "`nControleren $($software.Id)..." -ForegroundColor Cyan
+            Write-LogMessage "Start controle van $($software.Id)"
             
-            # Check if already installed
-            $installed = winget list --id $software --exact | Select-String "^$software"
+            # Check if already installed through registry or file paths
+            $isInstalled = $false
             
-            if ($installed) {
-                Write-Host "`n$software is al geinstalleerd. Overslaan..." -ForegroundColor Green
-                Write-LogMessage "$software is al geinstalleerd"
-                continue
+            # Check registry paths
+            foreach ($regPath in $software.RegPaths) {
+                if (Test-Path $regPath) {
+                    $isInstalled = $true
+                    break
+                }
             }
             
-            Write-Host "`n$software installeren..." -ForegroundColor Cyan
-            Write-LogMessage "$software installeren"
-            
-            # Install if not present
-            winget install --id $software --silent --accept-source-agreements --accept-package-agreements --source winget
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "Waarschuwing: $software installatie mislukt" -ForegroundColor Yellow
-                Write-LogMessage "Waarschuwing: $software installatie mislukt"
-                continue
+            # Check exe paths if defined
+            if (-not $isInstalled -and $software.ExePaths) {
+                foreach ($exePath in $software.ExePaths) {
+                    if (Test-Path $exePath) {
+                        $isInstalled = $true
+                        break
+                    }
+                }
             }
-            Write-Host "$software succesvol geinstalleerd" -ForegroundColor Green
-            Write-LogMessage "$software succesvol geinstalleerd"
+            
+            # Double check with winget if not found in registry/files
+            if (-not $isInstalled) {
+                $wingetCheck = winget list --id $software.Id --exact
+                $isInstalled = $LASTEXITCODE -eq 0
+            }
+            
+            if ($isInstalled) {
+                Write-Host "$($software.Id) is al geinstalleerd. Controleren op updates..." -ForegroundColor Yellow
+                Write-LogMessage "$($software.Id) is al geinstalleerd, upgrade check"
+                
+                # Try to upgrade if already installed
+                winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "$($software.Id) is bijgewerkt naar de laatste versie" -ForegroundColor Green
+                    Write-LogMessage "$($software.Id) upgrade succesvol"
+                }
+            } else {
+                # Install if not present
+                Write-Host "$($software.Id) wordt geinstalleerd..." -ForegroundColor Yellow
+                winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
+                    Write-LogMessage "$($software.Id) installatie succesvol"
+                } else {
+                    Write-Host "Waarschuwing: $($software.Id) installatie mislukt" -ForegroundColor Yellow
+                    Write-LogMessage "$($software.Id) installatie mislukt"
+                }
+            }
         }
         
-        # Complete the progress bar
-        $progressBar = "[" + ("█" * 50) + "]"
-        Write-Host "`r$progressBar 100% " -ForegroundColor Green
-        
         Show-Progress -Activity "Winget" -Status "Voltooid" -PercentComplete 100
-        Write-Host "`nWinget software installatie voltooid" -ForegroundColor Green
-        Write-LogMessage "Winget software installatie voltooid"
+        Write-Host "`nAlle software installaties voltooid" -ForegroundColor Green
+        Write-LogMessage "Alle software installaties voltooid"
         return $true
     }
     catch {
@@ -321,13 +377,13 @@ function Install-WindowsUpdates {
         # Install regular updates
         if ($regularUpdates.Count -gt 0) {
             Write-Host "Reguliere updates worden geinstalleerd..." -ForegroundColor Yellow
-            Install-WindowsUpdate -AcceptAll -AutoReboot:$false -Verbose | Out-File (Join-Path $env:TEMP "Windows_Regular_Updates_Log.txt")
+            Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IgnoreReboot -Confirm:$false -Verbose | Out-File (Join-Path $env:TEMP "Windows_Regular_Updates_Log.txt")
         }
 
         # Install optional updates
         if ($optionalUpdates.Count -gt 0) {
             Write-Host "Optionele updates worden geinstalleerd..." -ForegroundColor Yellow
-            Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IsHidden -Verbose | Out-File (Join-Path $env:TEMP "Windows_Optional_Updates_Log.txt")
+            Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IsHidden -IgnoreReboot -Confirm:$false -Verbose | Out-File (Join-Path $env:TEMP "Windows_Optional_Updates_Log.txt")
         }
         
         Write-Host "Alle Windows Updates succesvol geinstalleerd (regulier en optioneel)" -ForegroundColor Green
