@@ -40,7 +40,7 @@ function Connect-ToWiFi {
     <name>$SSID</name>
     <SSIDConfig>
         <SSID>
-            <name>$SSID</name>
+            <hex>$SSID</hex>
         </SSID>
     </SSIDConfig>
     <connectionType>ESS</connectionType>
@@ -142,17 +142,23 @@ function Remove-WindowsApps {
 
         # Check for existing apps
         $existingApps = @()
+        $i = 0
+        Write-Progress -Activity "Apps controleren" -Status "Zoeken naar voorgeïnstalleerde apps..." -PercentComplete 0
         foreach ($app in $appsToRemove) {
+            $i++
+            $percentComplete = ($i / $appsToRemove.Count) * 100
+            Write-Progress -Activity "Apps controleren" -Status "Controleren: $app" -PercentComplete $percentComplete
+            
             $package = Get-AppxPackage -Name $app -AllUsers -ErrorAction SilentlyContinue
             $provisionedPackage = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | 
                                 Where-Object DisplayName -eq $app
             
-            # Only add to existing apps if either package actually contains data
             if ($package -ne $null -or $provisionedPackage -ne $null) {
                 $existingApps += $app
                 Write-LogMessage "Gevonden app: $app"
             }
         }
+        Write-Progress -Activity "Apps controleren" -Completed
 
         if ($existingApps.Count -eq 0) {
             Write-Host "Geen Windows apps gevonden om te verwijderen" -ForegroundColor Cyan
@@ -164,7 +170,12 @@ function Remove-WindowsApps {
         Write-Host "Verwijderen van $($existingApps.Count) gevonden Windows apps..." -ForegroundColor Yellow
         
         $appsRemoved = 0
+        $i = 0
         foreach ($app in $existingApps) {
+            $i++
+            $percentComplete = ($i / $existingApps.Count) * 100
+            Write-Progress -Activity "Apps verwijderen" -Status "Verwijderen: $app" -PercentComplete $percentComplete
+            
             Write-Host "Verwijderen: $app" -ForegroundColor Yellow
             Write-LogMessage "Verwijderen app: $app"
             
@@ -178,10 +189,9 @@ function Remove-WindowsApps {
                                 Where-Object DisplayName -eq $app
             if ($provisionedPackage -ne $null) {
                 $provisionedPackage | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-                # Don't increment appsRemoved here as it might be the same app
             }
         }
-        
+        Write-Progress -Activity "Apps verwijderen" -Completed
         if ($appsRemoved -gt 0) {
             Write-Host "$appsRemoved Windows apps succesvol verwijderd" -ForegroundColor Green
             Write-LogMessage "$appsRemoved Windows apps succesvol verwijderd"
@@ -243,131 +253,53 @@ function Install-NiniteSoftware {
         Write-Host "Ninite installer downloaden..." -ForegroundColor Yellow
         Write-LogMessage "Ninite installer downloaden"
         
+        Write-Progress -Activity "Ninite Installatie" -Status "Installer downloaden..." -PercentComplete 20
+        
         # Create temp directory if it doesn't exist
         $tempDir = Join-Path $env:TEMP "NiniteInstall"
         if (-not (Test-Path $tempDir)) {
-            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+            New-Item -ItemType Directory -Path $tempDir | Out-Null
         }
         
-        # Define direct download link to your pre-configured Ninite installer
-        $niniteUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/MLPACK.exe"
-        $ninitePath = Join-Path $tempDir "MLPACK.exe"
+        Write-Progress -Activity "Ninite Installatie" -Status "Installer uitvoeren..." -PercentComplete 40
         
-        # Download Ninite installer with progress
-        Write-Host "Bestand downloaden van cloud storage..." -ForegroundColor Yellow
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        # Download Ninite installer
+        $niniteUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/MLPACK.exe"
+        $installerPath = Join-Path $tempDir "MLPACK.exe"
         
         try {
             $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($niniteUrl, $ninitePath)
+            $webClient.DownloadFile($niniteUrl, $installerPath)
+            Write-LogMessage "Ninite installer gedownload naar: $installerPath"
+            
+            Write-Progress -Activity "Ninite Installatie" -Status "Software installeren..." -PercentComplete 60
+            
+            if (Test-Path $installerPath) {
+                Start-Process -FilePath $installerPath -Wait
+                Write-Progress -Activity "Ninite Installatie" -Status "Installatie voltooid" -PercentComplete 100
+                Write-Host "Ninite installatie voltooid" -ForegroundColor Green
+                Write-LogMessage "Ninite installatie succesvol"
+                Start-Sleep -Seconds 2
+            }
+            else {
+                throw "Installer niet gevonden na download"
+            }
         }
         catch {
-            throw "Download mislukt: $($_.Exception.Message)"
+            throw "Download of uitvoering van Ninite installer mislukt: $_"
         }
-        
-        # Verify file exists and has content
-        if (-not (Test-Path $ninitePath)) {
-            throw "Ninite installer niet gevonden na download"
-        }
-        
-        $fileInfo = Get-Item $ninitePath
-        if ($fileInfo.Length -eq 0) {
-            throw "Gedownload bestand is leeg"
-        }
-        
-        Write-Host "Software installeren via Ninite..." -ForegroundColor Yellow
-        Write-LogMessage "Software installatie gestart via Ninite"
-        
-        # Create and configure a new process
-        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $pinfo.FileName = $ninitePath
-        $pinfo.Arguments = ""  # Run without silent mode to show UI
-        $pinfo.UseShellExecute = $true
-        $pinfo.Verb = "runas"  # Run as administrator
-        $pinfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Normal
-        
-        Write-Host "Ninite installer starten met admin rechten..." -ForegroundColor Yellow
-        $process = New-Object System.Diagnostics.Process
-        $process.StartInfo = $pinfo
-        
-        # Start the process
-        if ($process.Start()) {
-            Write-Host "Wachten tot installatie voltooid is..." -ForegroundColor Yellow
-            
-            # Function to check if any Ninite processes are still running
-            function Get-NiniteProcesses {
-                return Get-Process | Where-Object { 
-                    $_.ProcessName -like "*Ninite*" -or 
-                    $_.ProcessName -like "*MLPACK*" -or 
-                    $_.Path -eq $ninitePath 
-                }
-            }
-            
-            # Wait for installation to complete and look for the Close button
-            $maxAttempts = 60  # 5 minutes (5 seconds * 60)
-            $attempts = 0
-            $closeClicked = $false
-            
-            while ($attempts -lt $maxAttempts) {
-                Start-Sleep -Seconds 5
-                $attempts++
-                Write-Host "." -NoNewline
-                
-                # Try to find and click the Close button
-                if (-not $closeClicked) {
-                    $closeClicked = Click-Button -WindowTitle "Ninite" -ButtonText "Close"
-                    if ($closeClicked) {
-                        Write-Host "`nInstallatie voltooid, venster automatisch gesloten" -ForegroundColor Green
-                        break
-                    }
-                }
-                
-                # Check if process is still running
-                if (-not (Get-NiniteProcesses)) {
-                    Write-Host "`nInstallatie voltooid" -ForegroundColor Green
-                    break
-                }
-            }
-            
-            # Kill any remaining processes
-            $remainingProcesses = Get-NiniteProcesses
-            if ($remainingProcesses) {
-                Write-Host "Afsluiten van overgebleven Ninite processen..." -ForegroundColor Yellow
-                $remainingProcesses | ForEach-Object {
-                    try {
-                        $_.CloseMainWindow() | Out-Null
-                        if (!$_.HasExited) {
-                            Start-Sleep -Seconds 2
-                            if (!$_.HasExited) {
-                                $_.Kill()
-                            }
-                        }
-                    }
-                    catch {
-                        # Process might have already closed
-                    }
-                }
-            }
-            
-            Write-Host "Ninite installatie succesvol voltooid" -ForegroundColor Green
-            Write-LogMessage "Ninite installatie succesvol"
-            
+        finally {
+            Write-Progress -Activity "Ninite Installatie" -Completed
             # Cleanup
-            if ($process -ne $null) {
-                $process.Dispose()
+            if (Test-Path $tempDir) {
+                Remove-Item -Path $tempDir -Recurse -Force
             }
-            Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-            
-            return $true
-        }
-        else {
-            throw "Kon het installatieproces niet starten"
         }
     }
     catch {
         $errorMsg = $_.Exception.Message
+        Write-Host "Ninite installatie mislukt: $errorMsg" -ForegroundColor Red
         Write-LogMessage "Ninite installatie mislukt: $errorMsg"
-        Write-Host "Ninite installatie mislukt" -ForegroundColor Red
         Write-Host @"
 Als Ninite niet werkt, hier zijn de directe download links:
 1. Chrome: https://www.google.com/chrome/
@@ -385,8 +317,6 @@ Als Ninite niet werkt, hier zijn de directe download links:
 
 Je kunt deze programma's handmatig downloaden en installeren.
 "@ -ForegroundColor Yellow
-        
-        return $false
     }
 }
 
