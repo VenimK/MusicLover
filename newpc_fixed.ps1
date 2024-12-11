@@ -846,7 +846,7 @@ function Open-IndexFile {
         Show-Progress -Activity "Index Bestand" -Status "Downloaden..." -PercentComplete 30
         
         # Download index file
-        $indexUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/index.html"
+        $indexUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/index_updated.html"
         $indexPath = Join-Path $tempDir "index.html"
         
         Write-Host "`nIndex bestand downloaden..." -ForegroundColor Cyan
@@ -860,20 +860,21 @@ function Open-IndexFile {
             throw "Index bestand download mislukt: $($_.Exception.Message)"
         }
 
-        Show-Progress -Activity "Index Bestand" -Status "Chrome starten..." -PercentComplete 80
+        Show-Progress -Activity "Index Bestand" -Status "Chrome openen..." -PercentComplete 80
         
-        # Open index.html in Chrome
-        Start-Process "chrome.exe" -ArgumentList $indexPath
+        # Start Chrome minimized
+        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = "chrome.exe"
+        $startInfo.Arguments = $indexPath
+        $startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Minimized
+        
+        $process = [System.Diagnostics.Process]::Start($startInfo)
         Start-Sleep -Seconds 2
 
-        # Minimize Chrome window
-        $chrome = Get-Process | Where-Object { $_.MainWindowTitle -like "*index.html*" }
-        if ($chrome) {
-            $null = [System.Runtime.InteropServices.Marshal]::GetActiveWindow()
-            [void][System.Runtime.InteropServices.Marshal]::ShowWindow($chrome.MainWindowHandle, 2)
-        }
+        # Ensure PowerShell window is in focus
+        $null = [System.Runtime.InteropServices.Marshal]::GetActiveWindow()
 
-        Show-Progress -Activity "Index Bestand" -Status "Voltooid" -PercentComplete 100
+        Show-Progress -Activity "Index Bestand" -Status "Gereed" -PercentComplete 100
         Write-Host "`nIndex bestand succesvol geopend in Chrome (geminimaliseerd)" -ForegroundColor Green
         Write-LogMessage "Index bestand succesvol geopend in Chrome (geminimaliseerd)"
         
