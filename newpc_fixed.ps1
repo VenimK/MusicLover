@@ -1040,9 +1040,12 @@ function Install-MicrosoftOffice {
         Write-LogMessage "Start Microsoft Office installatie"
         
         Show-Progress -Activity "Office Installatie" -Status "Voorbereiden..." -PercentComplete 10
+
+        # Get the absolute path to Office Tool Plus
+        $scriptDir = "H:\TECHSTICK\server"
+        $otpPath = Join-Path -Path $scriptDir -ChildPath "Office Tool\Office Tool Plus.exe"
         
-        # Path to Office Tool Plus executable
-        $otpPath = "C:\Program Files\Office Tool\Office Tool Plus.exe"
+        Write-LogMessage "Office Tool Plus pad: $otpPath"
         
         if (-not (Test-Path $otpPath)) {
             throw "Office Tool Plus niet gevonden op $otpPath"
@@ -1050,16 +1053,31 @@ function Install-MicrosoftOffice {
 
         Show-Progress -Activity "Office Installatie" -Status "Office $ProductId installeren..." -PercentComplete 30
 
-        # Build the command arguments
-        $arguments = @(
-            "/addProduct $ProductId",
-            "/channel Current",
-            "/architecture $Architecture",
-            "/language nl-nl",
-            "/download",
-            "/install",
-            "/quiet"
-        )
+        # For Office 2021 Standard, use specific XML configuration
+        if ($ProductId -eq "Standard2021Retail") {
+            $configXmlPath = New-Office2021StandardConfig
+            if (-not $configXmlPath) {
+                throw "Kon geen configuratie maken voor Office 2021 Standard"
+            }
+            
+            # Install using the configuration
+            $arguments = @(
+                "/deploy",
+                "/ConfigPath $configXmlPath",
+                "/quiet"
+            )
+        } else {
+            # Default arguments for other versions
+            $arguments = @(
+                "/addProduct $ProductId",
+                "/channel Current",
+                "/architecture $Architecture",
+                "/language nl-nl",
+                "/download",
+                "/install",
+                "/quiet"
+            )
+        }
 
         # Execute Office Tool Plus
         $process = Start-Process -FilePath $otpPath -ArgumentList $arguments -Wait -NoNewWindow -PassThru
@@ -1073,6 +1091,11 @@ function Install-MicrosoftOffice {
         # Activate Office
         Start-Process -FilePath $otpPath -ArgumentList "/activate" -Wait -NoNewWindow
         
+        # Clean up config file if it exists
+        if ($ProductId -eq "Standard2021Retail" -and (Test-Path $configXmlPath)) {
+            Remove-Item $configXmlPath -Force
+        }
+        
         Show-Progress -Activity "Office Installatie" -Status "Voltooid" -PercentComplete 100
         Write-Host "Microsoft Office installatie voltooid" -ForegroundColor Green
         Write-LogMessage "Microsoft Office installatie succesvol"
@@ -1082,6 +1105,109 @@ function Install-MicrosoftOffice {
         Write-Host "Microsoft Office installatie mislukt: $($_.Exception.Message)" -ForegroundColor Red
         Write-LogMessage "Microsoft Office installatie mislukt: $($_.Exception.Message)"
         Show-Progress -Activity "Office Installatie" -Status "Mislukt" -PercentComplete 100
+        return $false
+    }
+}
+
+# Function to create Office 2021 Standard XML configuration
+function New-Office2021StandardConfig {
+    try {
+        Write-Host "Office 2021 Standard configuratie aanmaken..." -ForegroundColor Yellow
+        Write-LogMessage "Start aanmaken Office 2021 Standard configuratie"
+        
+        # Get the absolute path to Office Tool Plus and config file
+        $scriptDir = "H:\TECHSTICK\server"
+        $otpPath = Join-Path -Path $scriptDir -ChildPath "Office Tool\Office Tool Plus.exe"
+        $configXmlPath = Join-Path -Path $scriptDir -ChildPath "Office Tool\office2021std_config.xml"
+        
+        Write-LogMessage "Office Tool Plus pad: $otpPath"
+        
+        if (-not (Test-Path $otpPath)) {
+            throw "Office Tool Plus niet gevonden op $otpPath"
+        }
+
+        # Build arguments for XML creation
+        $arguments = @(
+            "/createconfig",
+            "/ProductID Standard2021Retail",
+            "/Channel PerpetualVL2021",
+            "/Architecture x64",
+            "/Language nl-nl",
+            "/ExcludeApps Groove,Lync,Teams",
+            "/SavePath $configXmlPath"
+        )
+
+        # Execute Office Tool Plus to create XML
+        $process = Start-Process -FilePath $otpPath -ArgumentList $arguments -Wait -NoNewWindow -PassThru
+        
+        if ($process.ExitCode -ne 0) {
+            throw "XML configuratie aanmaken mislukt met exit code: $($process.ExitCode)"
+        }
+
+        Write-Host "Office configuratie succesvol aangemaakt op: $configXmlPath" -ForegroundColor Green
+        Write-LogMessage "Office configuratie succesvol aangemaakt"
+        return $configXmlPath
+    }
+    catch {
+        Write-Host "XML configuratie aanmaken mislukt: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "XML configuratie aanmaken mislukt: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+# Function to install Office 2021 Standard directly
+function Start-Office2021Installation {
+    try {
+        Write-Host "`nOffice 2021 Standard installatie starten..." -ForegroundColor Yellow
+        Write-LogMessage "Start Office 2021 Standard installatie"
+        
+        Show-Progress -Activity "Office 2021 Installatie" -Status "Voorbereiden..." -PercentComplete 10
+
+        # Create configuration
+        $configXmlPath = New-Office2021StandardConfig
+        if (-not $configXmlPath) {
+            throw "Kon geen configuratie maken voor Office 2021 Standard"
+        }
+
+        Show-Progress -Activity "Office 2021 Installatie" -Status "Installatie starten..." -PercentComplete 30
+
+        # Get Office Tool Plus path
+        $scriptDir = "H:\TECHSTICK\server"
+        $otpPath = Join-Path -Path $scriptDir -ChildPath "Office Tool\Office Tool Plus.exe"
+
+        # Start installation
+        Write-Host "Office 2021 Standard installatie wordt gestart..." -ForegroundColor Yellow
+        $arguments = @(
+            "/deploy",
+            "/ConfigPath $configXmlPath",
+            "/quiet"
+        )
+
+        $process = Start-Process -FilePath $otpPath -ArgumentList $arguments -Wait -NoNewWindow -PassThru
+        
+        if ($process.ExitCode -ne 0) {
+            throw "Office installatie proces gefaald met exit code: $($process.ExitCode)"
+        }
+
+        Show-Progress -Activity "Office 2021 Installatie" -Status "Activatie starten..." -PercentComplete 80
+        
+        # Activate Office
+        Start-Process -FilePath $otpPath -ArgumentList "/activate" -Wait -NoNewWindow
+
+        # Clean up config file
+        if (Test-Path $configXmlPath) {
+            Remove-Item $configXmlPath -Force
+        }
+
+        Show-Progress -Activity "Office 2021 Installatie" -Status "Voltooid" -PercentComplete 100
+        Write-Host "Office 2021 Standard installatie voltooid" -ForegroundColor Green
+        Write-LogMessage "Office 2021 Standard installatie succesvol"
+        return $true
+    }
+    catch {
+        Write-Host "Office 2021 Standard installatie mislukt: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Office 2021 Standard installatie mislukt: $($_.Exception.Message)"
+        Show-Progress -Activity "Office 2021 Installatie" -Status "Mislukt" -PercentComplete 100
         return $false
     }
 }
@@ -1107,56 +1233,8 @@ try {
         Write-LogMessage "WiFi verbinding mislukt, script gaat door"
     }
 
-    # Stap 4: Winget installatie
-    Write-Host "`nStap 4: Winget installeren..." -ForegroundColor Yellow
-    if (-not (Install-Winget)) {
-        Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "Winget installatie mislukt, script gaat door"
-    }
-
-    # Stap 5: Winget software installatie
-    Write-Host "`nStap 5: Winget software installeren..." -ForegroundColor Yellow
-    Install-WingetSoftware
-
-    # Stap 6: Adobe Reader installatie
-    Write-Host "`nStap 6: Adobe Reader installeren..." -ForegroundColor Yellow
-    Install-AdobeReader
-
-    # Stap 7: Windows updates installeren
-    Write-Host "`nStap 7: Windows updates installeren..." -ForegroundColor Yellow
-    if (-not (Install-WindowsUpdates)) {
-        Write-Host "Windows updates gefaald, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "Windows updates gefaald, script gaat door"
-    }
-
-    # Stap 8: Node.js installatie
-    Write-Host "`nStap 8: Node.js installatie controleren..." -ForegroundColor Yellow
-    if (-not (Test-NodeJS)) {
-        Write-Host "Node.js niet gevonden. Installatie starten..." -ForegroundColor Yellow
-        if (-not (Install-NodeJS)) {
-            throw "Node.js installatie mislukt"
-        }
-        
-        # Controleer opnieuw na installatie
-        if (-not (Test-NodeJS)) {
-            throw "Node.js installatie verificatie mislukt"
-        }
-    }
-
-    # Stap 9: NPM packages installeren
-    Write-Host "`nStap 9: NPM packages installeren..." -ForegroundColor Yellow
-    if (-not (Install-NpmPackages)) {
-        throw "NPM packages installatie mislukt"
-    }
-
-    # Stap 10: Server starten
-    Write-Host "`nStap 10: Node.js server starten..." -ForegroundColor Yellow
-    if (-not (Start-NodeServer)) {
-        throw "Server starten mislukt"
-    }
-
-    # Stap 11: Extra Software Pack
-    Write-Host "`nStap 11: Extra Software Pack controleren..." -ForegroundColor Yellow
+    # Stap 4: Extra Software Pack
+    Write-Host "`nStap 4: Extra Software Pack controleren..." -ForegroundColor Yellow
     $installOffice = Read-Host "Wilt u Microsoft Office installeren? (J/N)"
     if ($installOffice -eq 'J') {
         Write-Host "`nBeschikbare Office versies:"
@@ -1176,8 +1254,64 @@ try {
             $versionChoice = Read-Host "Kies een Office versie (1-4)"
         } while (-not ($officeVersions.ContainsKey([int]$versionChoice)))
         
-        $selectedVersion = $officeVersions[[int]$versionChoice]
-        Install-ExtraSoftwarePack -InstallOffice -OfficeVersion $selectedVersion
+        if ([int]$versionChoice -eq 4) {
+            # Use direct Office 2021 Standard installation
+            if (-not (Start-Office2021Installation)) {
+                Write-Host "Office 2021 Standard installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
+                Write-LogMessage "Office 2021 Standard installatie mislukt, script gaat door"
+            }
+        } else {
+            $selectedVersion = $officeVersions[[int]$versionChoice]
+            Install-ExtraSoftwarePack -InstallOffice -OfficeVersion $selectedVersion
+        }
+    }
+
+    # Stap 5: Winget installatie
+    Write-Host "`nStap 5: Winget installeren..." -ForegroundColor Yellow
+    if (-not (Install-Winget)) {
+        Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
+        Write-LogMessage "Winget installatie mislukt, script gaat door"
+    }
+
+    # Stap 6: Winget software installatie
+    Write-Host "`nStap 6: Winget software installeren..." -ForegroundColor Yellow
+    Install-WingetSoftware
+
+    # Stap 7: Adobe Reader installatie
+    Write-Host "`nStap 7: Adobe Reader installeren..." -ForegroundColor Yellow
+    Install-AdobeReader
+
+    # Stap 8: Windows updates installeren
+    Write-Host "`nStap 8: Windows updates installeren..." -ForegroundColor Yellow
+    if (-not (Install-WindowsUpdates)) {
+        Write-Host "Windows updates gefaald, maar script gaat door..." -ForegroundColor Yellow
+        Write-LogMessage "Windows updates gefaald, script gaat door"
+    }
+
+    # Stap 9: Node.js installatie
+    Write-Host "`nStap 9: Node.js installatie controleren..." -ForegroundColor Yellow
+    if (-not (Test-NodeJS)) {
+        Write-Host "Node.js niet gevonden. Installatie starten..." -ForegroundColor Yellow
+        if (-not (Install-NodeJS)) {
+            throw "Node.js installatie mislukt"
+        }
+        
+        # Controleer opnieuw na installatie
+        if (-not (Test-NodeJS)) {
+            throw "Node.js installatie verificatie mislukt"
+        }
+    }
+
+    # Stap 10: NPM packages installeren
+    Write-Host "`nStap 10: NPM packages installeren..." -ForegroundColor Yellow
+    if (-not (Install-NpmPackages)) {
+        throw "NPM packages installatie mislukt"
+    }
+
+    # Stap 11: Server starten
+    Write-Host "`nStap 11: Node.js server starten..." -ForegroundColor Yellow
+    if (-not (Start-NodeServer)) {
+        throw "Server starten mislukt"
     }
 
     # Stap 12: Index openen
@@ -1208,4 +1342,4 @@ Add-Type @"
         [DllImport("kernel32.dll")]
         public static extern IntPtr GetConsoleWindow();
     }
-"@
+"@ 
