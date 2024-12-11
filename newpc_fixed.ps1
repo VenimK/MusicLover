@@ -30,14 +30,15 @@ function Connect-ToWiFi {
 
     try {
         # Controleer of het netwerk bestaat
-        $network = netsh wlan show networks | Select-String -Pattern $SSID
-        if (-not $network) {
+        $networks = (netsh wlan show networks) -join "`n"
+        if ($networks -notmatch [regex]::Escape($SSID)) {
             throw "Netwerk $SSID niet gevonden"
         }
 
         Write-Host "Netwerk $SSID gevonden. Bezig met verbinden..." -ForegroundColor Yellow
         
         # Maak een tijdelijk profiel XML
+        $hexSSID = [System.BitConverter]::ToString([System.Text.Encoding]::UTF8.GetBytes($SSID)).Replace("-","")
         $profileXml = @"
 <?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
@@ -45,7 +46,7 @@ function Connect-ToWiFi {
     <SSIDConfig>
         <SSID>
             <name>$SSID</name>
-            <hex>$([System.BitConverter]::ToString([System.Text.Encoding]::UTF8.GetBytes($SSID)).Replace("-",""))</hex>
+            <hex>$hexSSID</hex>
         </SSID>
     </SSIDConfig>
     <connectionType>ESS</connectionType>
@@ -68,19 +69,27 @@ function Connect-ToWiFi {
 "@
         # Voeg het profiel toe
         $profilePath = "$env:TEMP\WiFiProfile.xml"
-        $profileXml | Set-Content $profilePath
-        netsh wlan add profile filename="$profilePath"
+        $profileXml | Set-Content $profilePath -Encoding UTF8
+        $addResult = netsh wlan add profile filename="$profilePath"
         Remove-Item $profilePath -ErrorAction SilentlyContinue
 
+        if ($LASTEXITCODE -ne 0) {
+            throw "Fout bij toevoegen WiFi profiel: $addResult"
+        }
+
         # Probeer verbinding te maken met het netwerk
-        netsh wlan connect name=$SSID
+        $connectResult = netsh wlan connect name="$SSID"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Fout bij verbinden: $connectResult"
+        }
         
         # Wacht even om de verbindingsstatus te controleren
+        Write-Host "Wachten op verbinding..." -ForegroundColor Yellow
         Start-Sleep -Seconds 5
         
         # Controleer of we verbonden zijn
-        $connectionStatus = netsh wlan show interfaces | Select-String -Pattern $SSID
-        if (-not $connectionStatus) {
+        $interfaces = (netsh wlan show interfaces) -join "`n"
+        if ($interfaces -notmatch [regex]::Escape($SSID)) {
             throw "Kan niet verbinden met $SSID"
         }
 
@@ -107,7 +116,7 @@ function Test-NodeJS {
             $env:Path = "$env:Path;$nodePath"
         }
         
-        $nodeVersion = & "$nodePath\node.exe" -v
+        $nodeVersion = node -v
         if ($LASTEXITCODE -eq 0) {
             Write-Host "Node.js gevonden: $nodeVersion" -ForegroundColor Green
             Write-LogMessage "Node.js gevonden: $nodeVersion"
@@ -173,7 +182,7 @@ function Install-NpmPackages {
         }
         
         Write-Progress -Activity "NPM Packages" -Status "Dependencies installeren..." -PercentComplete 50
-        & "C:\Program Files\nodejs\npm.cmd" install
+        npm install
         if ($LASTEXITCODE -ne 0) {
             throw "NPM install commando mislukt"
         }
@@ -203,18 +212,10 @@ function Start-NodeServer {
             throw "server.js niet gevonden in: $PSScriptRoot"
         }
         
-        # Update port in server.js to 3001
-        $serverContent = Get-Content $serverPath -Raw
-        if ($serverContent -match 'const port = \d+;') {
-            $serverContent = $serverContent -replace 'const port = \d+;', 'const port = 3001;'
-            $serverContent | Set-Content $serverPath -Force
-            Write-Host "Server poort bijgewerkt naar 3001" -ForegroundColor Green
-        }
-        
         # Start the server in a new window
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "& 'C:\Program Files\nodejs\node.exe' `"$serverPath`""
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "node `"$serverPath`""
         
-        Write-Host "Node.js server gestart op http://localhost:3001" -ForegroundColor Green
+        Write-Host "Node.js server gestart op http://localhost:3000" -ForegroundColor Green
         Write-LogMessage "Node.js server succesvol gestart"
         return $true
     }
@@ -235,12 +236,10 @@ try {
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
     Write-LogMessage "Execution Policy ingesteld op Bypass"
 
-    # Stap 2: WiFi verbinding (optioneel)
+    # Stap 2: WiFi verbinding
     Write-Host "`nStap 2: WiFi verbinding maken..." -ForegroundColor Yellow
-    $wifiResult = Connect-ToWiFi
-    if (-not $wifiResult) {
-        Write-Host "WiFi verbinding mislukt, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "WiFi verbinding mislukt, script gaat door"
+    if (-not (Connect-ToWiFi)) {
+        throw "WiFi verbinding mislukt"
     }
 
     # Stap 3: Node.js installatie
