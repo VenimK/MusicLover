@@ -1,8 +1,11 @@
 {
-  "name": "computer-gegevens-server",
+  "name": "musiclover-server",
   "version": "1.0.0",
-  "description": "Server for handling PDF emails",
+  "description": "Server for handling PDF uploads and email sending",
   "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "nodemailer": "^6.9.7",

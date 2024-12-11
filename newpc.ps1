@@ -94,117 +94,81 @@ function Connect-ToWiFi {
     }
 }
 
-# Function to check for administrative privileges
-function Test-Administrator {
-    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-# Function to handle errors
-function Handle-Error {
-    param($ErrorMessage)
-    Write-LogMessage "FOUT: $ErrorMessage"
-    Write-Host "Er is een fout opgetreden!" -ForegroundColor Red
-    Write-Host "Controleer het logbestand op $logFile voor details" -ForegroundColor Red
-}
-
-# Function to remove unwanted Windows apps
-function Remove-WindowsApps {
+# Function to start Node.js server
+function Start-NodeServer {
     try {
-        Write-Host "Controleren op voorgeinstalleerde Windows apps..." -ForegroundColor Yellow
-        Write-LogMessage "Start controle Windows apps"
+        Write-Host "Node.js server starten..." -ForegroundColor Yellow
+        Write-LogMessage "Node.js server wordt gestart"
         
-        $appsToRemove = @(
-            "Microsoft.BingWeather"
-            "Microsoft.GetHelp"
-            "Microsoft.Getstarted"
-            "Microsoft.Microsoft3DViewer"
-            "Microsoft.MicrosoftOfficeHub"
-            "Microsoft.MicrosoftSolitaireCollection"
-            "Microsoft.MixedReality.Portal"
-            "Microsoft.Office.OneNote"
-            "Microsoft.People"
-            "Microsoft.SkypeApp"
-            "Microsoft.WindowsAlarms"
-            "Microsoft.WindowsFeedbackHub"
-            "Microsoft.WindowsMaps"
-            "Microsoft.Xbox.TCUI"
-            "Microsoft.XboxApp"
-            "Microsoft.XboxGameOverlay"
-            "Microsoft.XboxGamingOverlay"
-            "Microsoft.XboxIdentityProvider"
-            "Microsoft.XboxSpeechToTextOverlay"
-            "Microsoft.YourPhone"
-            "Microsoft.ZuneMusic"
-            "Microsoft.ZuneVideo"
-        )
-
-        # Check for existing apps
-        $existingApps = @()
-        $i = 0
-        Write-Progress -Activity "Apps controleren" -Status "Zoeken naar voorgeïnstalleerde apps..." -PercentComplete 0
-        foreach ($app in $appsToRemove) {
-            $i++
-            $percentComplete = ($i / $appsToRemove.Count) * 100
-            Write-Progress -Activity "Apps controleren" -Status "Controleren: $app" -PercentComplete $percentComplete
-            
-            $package = Get-AppxPackage -Name $app -AllUsers -ErrorAction SilentlyContinue
-            $provisionedPackage = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | 
-                                Where-Object DisplayName -eq $app
-            
-            if ($package -ne $null -or $provisionedPackage -ne $null) {
-                $existingApps += $app
-                Write-LogMessage "Gevonden app: $app"
-            }
-        }
-        Write-Progress -Activity "Apps controleren" -Completed
-
-        if ($existingApps.Count -eq 0) {
-            Write-Host "Geen Windows apps gevonden om te verwijderen" -ForegroundColor Cyan
-            Write-LogMessage "Geen Windows apps aanwezig om te verwijderen"
-            return $true
-        }
-        
-        # Remove found apps
-        Write-Host "Verwijderen van $($existingApps.Count) gevonden Windows apps..." -ForegroundColor Yellow
-        
-        $appsRemoved = 0
-        $i = 0
-        foreach ($app in $existingApps) {
-            $i++
-            $percentComplete = ($i / $existingApps.Count) * 100
-            Write-Progress -Activity "Apps verwijderen" -Status "Verwijderen: $app" -PercentComplete $percentComplete
-            
-            Write-Host "Verwijderen: $app" -ForegroundColor Yellow
-            Write-LogMessage "Verwijderen app: $app"
-            
-            $package = Get-AppxPackage -Name $app -AllUsers -ErrorAction SilentlyContinue
-            if ($package -ne $null) {
-                $package | Remove-AppxPackage -ErrorAction SilentlyContinue
-                $appsRemoved++
-            }
-            
-            $provisionedPackage = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | 
-                                Where-Object DisplayName -eq $app
-            if ($provisionedPackage -ne $null) {
-                $provisionedPackage | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
-            }
-        }
-        Write-Progress -Activity "Apps verwijderen" -Completed
-        if ($appsRemoved -gt 0) {
-            Write-Host "$appsRemoved Windows apps succesvol verwijderd" -ForegroundColor Green
-            Write-LogMessage "$appsRemoved Windows apps succesvol verwijderd"
+        # Start server.js in a new window
+        $serverPath = Join-Path $PSScriptRoot "server.js"
+        if (Test-Path $serverPath) {
+            Start-Process powershell -ArgumentList "-NoExit", "-Command", "node `"$serverPath`"" -WindowStyle Normal
+            Write-Host "Node.js server is gestart in een nieuw venster" -ForegroundColor Green
+            Write-LogMessage "Node.js server succesvol gestart"
         } else {
-            Write-Host "Geen apps verwijderd (mogelijk al verwijderd)" -ForegroundColor Cyan
-            Write-LogMessage "Geen apps verwijderd"
+            throw "server.js niet gevonden in: $serverPath"
         }
-        return $true
     }
     catch {
         $errorMsg = $_.Exception.Message
-        Write-Host "Fout bij verwijderen Windows apps: $errorMsg" -ForegroundColor Red
-        Write-LogMessage "Fout bij verwijderen Windows apps: $errorMsg"
+        Write-Host "Fout bij starten Node.js server: $errorMsg" -ForegroundColor Red
+        Write-LogMessage "Fout bij starten Node.js server: $errorMsg"
+    }
+}
+
+# Function to check Node.js installation
+function Test-NodeJS {
+    try {
+        Write-Host "Node.js installatie controleren..." -ForegroundColor Yellow
+        Write-LogMessage "Node.js installatie controle gestart"
+        
+        $nodeVersion = node -v
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Node.js gevonden: $nodeVersion" -ForegroundColor Green
+            Write-LogMessage "Node.js gevonden: $nodeVersion"
+            return $true
+        }
+        return $false
+    }
+    catch {
+        Write-Host "Node.js is niet geïnstalleerd" -ForegroundColor Red
+        Write-LogMessage "Node.js niet gevonden"
+        return $false
+    }
+}
+
+# Function to install npm packages
+function Install-NpmPackages {
+    try {
+        Write-Host "NPM packages installeren..." -ForegroundColor Yellow
+        Write-LogMessage "NPM packages installatie gestart"
+        
+        # Navigate to server directory
+        Set-Location -Path $PSScriptRoot
+        
+        # Check if package.json exists
+        if (-not (Test-Path "package.json")) {
+            throw "package.json niet gevonden in: $PSScriptRoot"
+        }
+        
+        # Install dependencies
+        Write-Progress -Activity "NPM Packages" -Status "Dependencies installeren..." -PercentComplete 50
+        npm install
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "NPM packages succesvol geïnstalleerd" -ForegroundColor Green
+            Write-LogMessage "NPM packages succesvol geïnstalleerd"
+            Write-Progress -Activity "NPM Packages" -Completed
+            return $true
+        }
+        throw "NPM packages installatie mislukt"
+    }
+    catch {
+        $errorMsg = $_.Exception.Message
+        Write-Host "Fout bij installeren NPM packages: $errorMsg" -ForegroundColor Red
+        Write-LogMessage "Fout bij NPM packages installatie: $errorMsg"
+        Write-Progress -Activity "NPM Packages" -Completed
         return $false
     }
 }
@@ -809,3 +773,26 @@ catch {
 
 # Final log message
 Write-LogMessage "Script uitvoering beeindigd"
+
+# Sequence of steps
+Write-Host "Stap 1: Execution Policy instellen..." -ForegroundColor Cyan
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser -Force
+Write-LogMessage "Stap 1 voltooid: Execution Policy ingesteld"
+
+Write-Host "`nStap 2: WiFi verbinding maken..." -ForegroundColor Cyan
+Connect-ToWiFi
+Write-LogMessage "Stap 2 voltooid: WiFi verbinding opgezet"
+
+Write-Host "`nNode.js server voorbereiden..." -ForegroundColor Cyan
+if (-not (Test-NodeJS)) {
+    Write-Host "Node.js moet eerst geïnstalleerd worden. Download en installeer vanaf: https://nodejs.org/" -ForegroundColor Red
+    Write-Host "Herstart het script na de installatie." -ForegroundColor Yellow
+    exit 1
+}
+
+if (-not (Install-NpmPackages)) {
+    Write-Host "NPM packages installatie mislukt. Script wordt gestopt." -ForegroundColor Red
+    exit 1
+}
+
+Start-NodeServer
