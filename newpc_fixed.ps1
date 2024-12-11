@@ -191,117 +191,76 @@ function Click-Button {
     }
 }
 
-# Function to install software using Ninite
-function Install-NiniteSoftware {
+# Function to install software using winget
+function Install-WingetSoftware {
     try {
-        Write-Host "`nNinite software installatie starten..." -ForegroundColor Yellow
-        Write-LogMessage "Start Ninite software installatie"
+        Write-Host "`nWinget software installatie starten..." -ForegroundColor Yellow
+        Write-LogMessage "Start winget software installatie"
         
-        Show-Progress -Activity "Ninite" -Status "Voorbereiden..." -PercentComplete 10
+        Show-Progress -Activity "Winget" -Status "Voorbereiden..." -PercentComplete 10
         
-        # Create temp directory in user's temp folder
-        $userTemp = [System.IO.Path]::GetTempPath()
-        $tempDir = Join-Path $userTemp "NiniteInstall"
-        if (-not (Test-Path $tempDir)) {
-            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-        }
+        # Install software using winget
+        $softwareList = @(
+            "Google.Chrome",
+            "7zip.7zip",
+            "VideoLAN.VLC",
+            "BelgianGovernment.Belgium-eIDmiddleware",
+            "BelgianGovernment.eIDViewer"
+        )
         
-        # Download MLPACK.exe
-        Show-Progress -Activity "Ninite" -Status "MLPACK.exe downloaden..." -PercentComplete 20
-        $mlpackUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/MLPACK.exe"
-        $mlpackPath = Join-Path $tempDir "MLPACK.exe"
+        $totalSteps = $softwareList.Count
+        $currentStep = 0
+        $progress = 0
+        $increment = 90 / $totalSteps
         
-        Write-Host "`nMLPACK.exe downloaden..." -ForegroundColor Cyan
-        Write-LogMessage "MLPACK.exe downloaden"
-        
-        try {
-            $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($mlpackUrl, $mlpackPath)
-        }
-        catch {
-            throw "MLPACK.exe download mislukt: $($_.Exception.Message)"
-        }
-        
-        if (-not (Test-Path $mlpackPath)) {
-            throw "MLPACK.exe niet gevonden na download"
-        }
-        
-        Show-Progress -Activity "Ninite" -Status "Installeren..." -PercentComplete 30
-        Write-Host "`nSoftware installeren via MLPACK..." -ForegroundColor Cyan
-        Write-LogMessage "Software installeren via MLPACK"
-        
-        # Start MLPACK installer with admin rights
-        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $pinfo.FileName = $mlpackPath
-        $pinfo.UseShellExecute = $true
-        $pinfo.Verb = "runas"  # Run as administrator
-        
-        $niniteProcess = New-Object System.Diagnostics.Process
-        $niniteProcess.StartInfo = $pinfo
-        $niniteProcess.Start() | Out-Null
-        
-        # Wait for installation to start (give it a moment to initialize)
-        Start-Sleep -Seconds 2
-        
-        Show-Progress -Activity "Ninite" -Status "Wachten op installatie..." -PercentComplete 50
-        
-        # Wait for the main Ninite window
-        $maxAttempts = 30  # Maximum number of attempts to find the window
-        $attempts = 0
-        $niniteWindow = $null
-        
-        while (-not $niniteWindow -and $attempts -lt $maxAttempts) {
-            $niniteWindow = Get-Process | Where-Object { $_.MainWindowTitle -like "*Ninite*" }
-            if (-not $niniteWindow) {
-                Start-Sleep -Seconds 1
-                $attempts++
-            }
-        }
-        
-        if ($niniteWindow) {
-            # Wait for installation to complete (window title will change)
-            while ($niniteWindow.MainWindowTitle -notlike "*Complete*" -and -not $niniteWindow.HasExited) {
-                Start-Sleep -Seconds 1
-                $niniteWindow.Refresh()
+        foreach ($software in $softwareList) {
+            $currentStep++
+            $progress += $increment
+            
+            # Calculate progress percentage for ASCII bar
+            $percentComplete = [math]::Round(($currentStep / $totalSteps) * 100)
+            $progressBar = "[" + ("█" * [math]::Floor($percentComplete/2)) + (" " * (50 - [math]::Floor($percentComplete/2))) + "]"
+            
+            Write-Host "`r$progressBar $percentComplete% " -NoNewline -ForegroundColor Green
+            Show-Progress -Activity "Winget" -Status "Controleren $software..." -PercentComplete (10 + $progress)
+            
+            # Check if already installed
+            $installed = winget list --id $software --exact | Select-String "^$software"
+            
+            if ($installed) {
+                Write-Host "`n$software is al geinstalleerd. Overslaan..." -ForegroundColor Green
+                Write-LogMessage "$software is al geinstalleerd"
+                continue
             }
             
-            Show-Progress -Activity "Ninite" -Status "Afronden..." -PercentComplete 90
+            Write-Host "`n$software installeren..." -ForegroundColor Cyan
+            Write-LogMessage "$software installeren"
             
-            # If the process is still running, close it
-            if (-not $niniteWindow.HasExited) {
-                $niniteWindow.CloseMainWindow()
-                Start-Sleep -Seconds 1
-                if (-not $niniteWindow.HasExited) {
-                    $niniteWindow.Kill()
-                }
+            # Install if not present
+            winget install --id $software --silent --accept-source-agreements --accept-package-agreements --source winget
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Waarschuwing: $software installatie mislukt" -ForegroundColor Yellow
+                Write-LogMessage "Waarschuwing: $software installatie mislukt"
+                continue
             }
+            Write-Host "$software succesvol geinstalleerd" -ForegroundColor Green
+            Write-LogMessage "$software succesvol geinstalleerd"
         }
         
-        # Cleanup
-        Start-Sleep -Seconds 2  # Wait a bit before cleanup
-        try {
-            if (Test-Path $mlpackPath) {
-                Remove-Item $mlpackPath -Force -ErrorAction Stop
-            }
-            if (Test-Path $tempDir) {
-                Remove-Item $tempDir -Force -Recurse -ErrorAction Stop
-            }
-        }
-        catch {
-            Write-LogMessage "Cleanup waarschuwing: $($_.Exception.Message)"
-            # Continue even if cleanup fails
-        }
+        # Complete the progress bar
+        $progressBar = "[" + ("█" * 50) + "]"
+        Write-Host "`r$progressBar 100% " -ForegroundColor Green
         
-        Show-Progress -Activity "Ninite" -Status "Voltooid" -PercentComplete 100
-        Write-Host "`nNinite software installatie voltooid" -ForegroundColor Green
-        Write-LogMessage "Ninite software installatie voltooid"
+        Show-Progress -Activity "Winget" -Status "Voltooid" -PercentComplete 100
+        Write-Host "`nWinget software installatie voltooid" -ForegroundColor Green
+        Write-LogMessage "Winget software installatie voltooid"
         return $true
     }
     catch {
         $errorMsg = $_.Exception.Message
-        Write-Host "`nNinite software installatie mislukt: $errorMsg" -ForegroundColor Red
-        Write-LogMessage "Ninite software installatie mislukt: $errorMsg"
-        Show-Progress -Activity "Ninite" -Status "Mislukt" -PercentComplete 100
+        Write-Host "`nWinget software installatie mislukt: $errorMsg" -ForegroundColor Red
+        Write-LogMessage "Winget software installatie mislukt: $errorMsg"
+        Show-Progress -Activity "Winget" -Status "Mislukt" -PercentComplete 100
         return $false
     }
 }
@@ -589,8 +548,260 @@ function Install-AdobeReader {
         Show-Progress -Activity "Adobe Reader" -Status "Installeren..." -PercentComplete 50
         Write-Host "`nAdobe Reader installeren..." -ForegroundColor Cyan
         Write-LogMessage "Adobe Reader installeren"
+        $arguments = "/sAll /rs /msi /norestart /quiet EULA_ACCEPT=YES"
+        
+        # Start installation process with admin rights
+        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo.FileName = $installerPath
+        $pinfo.Arguments = $arguments
+        $pinfo.UseShellExecute = $true
+        $pinfo.Verb = "runas"
+        
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $pinfo
+        $process.Start() | Out-Null
+        $process.WaitForExit()
 
-        # Silent installation parameters
+        if ($process.ExitCode -ne 0) {
+            throw "Adobe Reader installatie mislukt met exit code: $($process.ExitCode)"
+        }
+
+        Show-Progress -Activity "Adobe Reader" -Status "PDF associatie instellen..." -PercentComplete 80
+        
+        # Set Adobe Reader as default PDF application
+        try {
+            $assocPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice"
+            if (Test-Path $assocPath) {
+                Remove-Item -Path $assocPath -Force -Recurse
+            }
+            Start-Process "cmd.exe" -ArgumentList "/c ftype AcroExch.Document.DC=`"$env:ProgramFiles\Adobe\Acrobat DC\Acrobat\Acrobat.exe`" `"%1`"" -Verb runas -Wait
+            Start-Process "cmd.exe" -ArgumentList "/c assoc .pdf=AcroExch.Document.DC" -Verb runas -Wait
+        }
+        catch {
+            Write-LogMessage "Waarschuwing: Kon PDF associatie niet instellen: $($_.Exception.Message)"
+            # Continue even if association fails
+        }
+
+        # Cleanup
+        Show-Progress -Activity "Adobe Reader" -Status "Opruimen..." -PercentComplete 90
+        Start-Sleep -Seconds 2  # Wait a bit before cleanup
+        try {
+            if (Test-Path $installerPath) {
+                Remove-Item $installerPath -Force -ErrorAction Stop
+            }
+            if (Test-Path $tempDir) {
+                Remove-Item $tempDir -Force -Recurse -ErrorAction Stop
+            }
+        }
+        catch {
+            Write-LogMessage "Cleanup waarschuwing: $($_.Exception.Message)"
+            # Continue even if cleanup fails
+        }
+
+        Show-Progress -Activity "Adobe Reader" -Status "Voltooid" -PercentComplete 100
+        Write-Host "`nAdobe Reader installatie voltooid" -ForegroundColor Green
+        Write-LogMessage "Adobe Reader installatie voltooid"
+        return $true
+    }
+    catch {
+        $errorMsg = $_.Exception.Message
+        Write-Host "`nAdobe Reader installatie mislukt: $errorMsg" -ForegroundColor Red
+        Write-LogMessage "Adobe Reader installatie mislukt: $errorMsg"
+        Show-Progress -Activity "Adobe Reader" -Status "Mislukt" -PercentComplete 100
+        return $false
+    }
+}
+
+# Function to optimize power settings
+function Set-OptimalPowerSettings {
+    try {
+        Write-Host "Energie-instellingen optimaliseren..." -ForegroundColor Yellow
+        Write-LogMessage "Energie-instellingen aanpassen gestart"
+
+        # Set power plan to High Performance
+        $powerPlan = Get-WmiObject -Namespace root\cimv2\power -Class Win32_PowerPlan | Where-Object { $_.ElementName -eq "High Performance" }
+        if ($powerPlan) {
+            $powerPlan.Activate()
+            Write-Host "High Performance energieplan geactiveerd" -ForegroundColor Green
+        }
+
+        # Configure power settings using powercfg
+        # Never turn off display when plugged in
+        powercfg /change monitor-timeout-ac 0
+        powercfg /change monitor-timeout-dc 0
+        # Never put computer to sleep when plugged in
+        powercfg /change standby-timeout-ac 0
+        powercfg /change standby-timeout-dc 0
+        # Never turn off hard disk
+        powercfg /change disk-timeout-ac 0
+        powercfg /change disk-timeout-dc 0
+        # Disable hibernate
+        powercfg /hibernate off
+        # Disable USB selective suspend
+        powercfg /setacvalueindex scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+        # Apply changes
+        powercfg /setactive scheme_current
+
+        Write-Host "Energie-instellingen succesvol aangepast" -ForegroundColor Green
+        Write-LogMessage "Energie-instellingen succesvol aangepast"
+    }
+    catch {
+        Write-LogMessage "Energie-instellingen aanpassen mislukt: $($_.Exception.Message)"
+        Write-Host "Energie-instellingen aanpassen mislukt" -ForegroundColor Red
+    }
+}
+
+# Function to install Winget
+function Install-Winget {
+    try {
+        Write-Host "`nWinget installatie starten..." -ForegroundColor Yellow
+        Write-LogMessage "Start Winget installatie"
+
+        # Start progress
+        Show-Progress -Activity "Winget Installatie" -Status "Voorbereiden..." -PercentComplete 0
+
+        # Controleer of winget al is geinstalleerd
+        $hasWinget = Get-AppxPackage -Name Microsoft.DesktopAppInstaller
+
+        if ($hasWinget) {
+            Show-Progress -Activity "Winget Installatie" -Status "Verwijderen oude versie..." -PercentComplete 20
+            Write-Host "`nBestaande Winget installatie verwijderen..." -ForegroundColor Yellow
+            Write-LogMessage "Verwijderen bestaande Winget installatie"
+            Get-AppxPackage *Microsoft.DesktopAppInstaller* | Remove-AppxPackage
+            Start-Sleep -Seconds 2
+        }
+
+        # Download en installeer de nieuwste versie van winget
+        Show-Progress -Activity "Winget Installatie" -Status "Downloaden..." -PercentComplete 40
+        Write-Host "`nNieuwste Winget installer downloaden..." -ForegroundColor Cyan
+        Write-LogMessage "Downloaden Winget installer"
+        $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+        $installerPath = Join-Path $env:TEMP "Microsoft.DesktopAppInstaller.msixbundle"
+
+        $webClient = New-Object System.Net.WebClient
+        $webClient.DownloadFile($wingetUrl, $installerPath)
+
+        Show-Progress -Activity "Winget Installatie" -Status "Installeren..." -PercentComplete 60
+        Write-Host "`nWinget installeren..." -ForegroundColor Cyan
+        Write-LogMessage "Installeren Winget"
+        Add-AppxPackage $installerPath
+
+        # Ruim het installatiebestand op
+        Show-Progress -Activity "Winget Installatie" -Status "Opruimen..." -PercentComplete 80
+        if (Test-Path $installerPath) {
+            Remove-Item $installerPath
+        }
+
+        # Ververs omgevingsvariabelen
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+        # Verifieer installatie
+        Show-Progress -Activity "Winget Installatie" -Status "Verificatie..." -PercentComplete 90
+        Write-Host "`nWinget installatie verifieren..." -ForegroundColor Cyan
+        Write-LogMessage "Verifieren Winget installatie"
+        $wingetVersion = winget --version
+        
+        # Accept Microsoft Store agreements
+        Show-Progress -Activity "Winget Installatie" -Status "Configureren..." -PercentComplete 95
+        Write-Host "`nMicrosoft Store voorwaarden accepteren..." -ForegroundColor Yellow
+        winget settings --enable LocalManifestFiles
+        winget settings --enable MSStore
+        winget source reset --force msstore
+        
+        Show-Progress -Activity "Winget Installatie" -Status "Voltooid" -PercentComplete 100
+        Write-Host "`nWinget succesvol geinstalleerd! Versie: $wingetVersion" -ForegroundColor Green
+        Write-LogMessage "Winget succesvol geinstalleerd: $wingetVersion"
+        
+        return $true
+    }
+    catch {
+        $errorMsg = $_.Exception.Message
+        Write-Host "`nWinget installatie mislukt: $errorMsg" -ForegroundColor Red
+        Write-LogMessage "Winget installatie mislukt: $errorMsg"
+        Show-Progress -Activity "Winget Installatie" -Status "Mislukt" -PercentComplete 100
+        return $false
+    }
+}
+
+# Function to install Adobe Reader
+function Install-AdobeReader {
+    try {
+        Write-Host "`nAdobe Reader installatie controleren..." -ForegroundColor Yellow
+        Write-LogMessage "Start Adobe Reader installatie check"
+
+        # Check multiple registry locations for Adobe Reader
+        $paths = @(
+            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        )
+        
+        $adobeInstalled = $false
+        foreach ($path in $paths) {
+            if (Test-Path $path) {
+                $installed = Get-ItemProperty $path | 
+                    Where-Object { 
+                        $_.DisplayName -like "*Adobe Acrobat*" -or 
+                        $_.DisplayName -like "*Adobe Reader*" -or
+                        $_.DisplayName -like "*Acrobat Reader*"
+                    }
+                if ($installed) {
+                    $adobeInstalled = $true
+                    $version = $installed.DisplayName
+                    break
+                }
+            }
+        }
+
+        # Also check common installation paths
+        $commonPaths = @(
+            "$env:ProgramFiles\Adobe\Acrobat DC\Acrobat\Acrobat.exe",
+            "$env:ProgramFiles\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
+            "${env:ProgramFiles(x86)}\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
+            "$env:ProgramFiles\Adobe\Reader 11.0\Reader\AcroRd32.exe",
+            "${env:ProgramFiles(x86)}\Adobe\Reader 11.0\Reader\AcroRd32.exe"
+        )
+
+        foreach ($path in $commonPaths) {
+            if (Test-Path $path) {
+                $adobeInstalled = $true
+                break
+            }
+        }
+
+        if ($adobeInstalled) {
+            Write-Host "Adobe Reader is al geinstalleerd. Installatie wordt overgeslagen." -ForegroundColor Green
+            Write-LogMessage "Adobe Reader is al geinstalleerd"
+            Show-Progress -Activity "Adobe Reader" -Status "Reeds geinstalleerd" -PercentComplete 100
+            return $true
+        }
+
+        Show-Progress -Activity "Adobe Reader" -Status "Voorbereiden..." -PercentComplete 10
+        
+        # Create temp directory
+        $userTemp = [System.IO.Path]::GetTempPath()
+        $tempDir = Join-Path $userTemp "AdobeReaderInstall"
+        if (-not (Test-Path $tempDir)) {
+            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+        }
+
+        Show-Progress -Activity "Adobe Reader" -Status "Downloaden..." -PercentComplete 20
+        
+        # Download Adobe Reader
+        $adobeUrl = "https://admdownload.adobe.com/rdcm/installers/live/readerdc64.exe"
+        $installerPath = Join-Path $tempDir "AdobeReaderDC.exe"
+        
+        Show-Progress -Activity "Adobe Reader" -Status "Bestand ophalen..." -PercentComplete 40
+        try {
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($adobeUrl, $installerPath)
+        }
+        catch {
+            throw "Adobe Reader download mislukt: $($_.Exception.Message)"
+        }
+
+        Show-Progress -Activity "Adobe Reader" -Status "Installeren..." -PercentComplete 50
+        Write-Host "`nAdobe Reader installeren..." -ForegroundColor Cyan
+        Write-LogMessage "Adobe Reader installeren"
         $arguments = "/sAll /rs /msi /norestart /quiet EULA_ACCEPT=YES"
         
         # Start installation process with admin rights
@@ -914,37 +1125,23 @@ try {
         Write-LogMessage "Winget installatie mislukt, script gaat door"
     }
 
-    # Stap 5: Belgische eID software installatie
-    Write-Host "`nStap 5: Belgische eID software installeren..." -ForegroundColor Yellow
-    Install-BelgianEid
+    # Stap 5: Winget software installatie
+    Write-Host "`nStap 5: Winget software installeren..." -ForegroundColor Yellow
+    Install-WingetSoftware
 
-    # Stap 6: Software installatie via Ninite
-    Write-Host "`nStap 6: Software installeren via Ninite..." -ForegroundColor Yellow
-    if (-not (Install-NiniteSoftware)) {
-        Write-Host "Software installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "Software installatie mislukt, script gaat door"
-    }
-
-    # Stap 7: Index bestand openen
-    Write-Host "`nStap 7: Index bestand downloaden en openen..." -ForegroundColor Yellow
-    if (-not (Open-IndexFile)) {
-        Write-Host "Index bestand openen mislukt, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "Index bestand openen mislukt, script gaat door"
-    }
-
-    # Stap 8: Adobe Reader installatie
-    Write-Host "`nStap 8: Adobe Reader installeren..." -ForegroundColor Yellow
+    # Stap 6: Adobe Reader installatie
+    Write-Host "`nStap 6: Adobe Reader installeren..." -ForegroundColor Yellow
     Install-AdobeReader
-    
-    # Stap 9: Windows Updates
-    Write-Host "`nStap 9: Windows Updates controleren en installeren..." -ForegroundColor Yellow
+
+    # Stap 7: Windows updates installeren
+    Write-Host "`nStap 7: Windows updates installeren..." -ForegroundColor Yellow
     if (-not (Install-WindowsUpdates)) {
-        Write-Host "Windows Updates gefaald, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "Windows Updates gefaald, script gaat door"
+        Write-Host "Windows updates gefaald, maar script gaat door..." -ForegroundColor Yellow
+        Write-LogMessage "Windows updates gefaald, script gaat door"
     }
 
-    # Stap 10: Node.js installatie
-    Write-Host "`nStap 10: Node.js installatie controleren..." -ForegroundColor Yellow
+    # Stap 8: Node.js installatie
+    Write-Host "`nStap 8: Node.js installatie controleren..." -ForegroundColor Yellow
     if (-not (Test-NodeJS)) {
         Write-Host "Node.js niet gevonden. Installatie starten..." -ForegroundColor Yellow
         if (-not (Install-NodeJS)) {
@@ -957,17 +1154,21 @@ try {
         }
     }
 
-    # Stap 11: NPM packages installeren
-    Write-Host "`nStap 11: NPM packages installeren..." -ForegroundColor Yellow
+    # Stap 9: NPM packages installeren
+    Write-Host "`nStap 9: NPM packages installeren..." -ForegroundColor Yellow
     if (-not (Install-NpmPackages)) {
         throw "NPM packages installatie mislukt"
     }
 
-    # Stap 12: Server starten
-    Write-Host "`nStap 12: Node.js server starten..." -ForegroundColor Yellow
+    # Stap 10: Server starten
+    Write-Host "`nStap 10: Node.js server starten..." -ForegroundColor Yellow
     if (-not (Start-NodeServer)) {
         throw "Server starten mislukt"
     }
+
+    # Stap 11: Index openen
+    Write-Host "`nStap 11: Index openen..." -ForegroundColor Yellow
+    Open-IndexFile
 
     Write-Host "`nSetup succesvol afgerond!" -ForegroundColor Green
     Write-LogMessage "Script succesvol afgerond"
