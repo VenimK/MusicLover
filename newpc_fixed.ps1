@@ -907,88 +907,54 @@ function Get-PCSerialNumber {
 
 # Function to download and open index file
 function Open-IndexFile {
+    Write-Host "`nIndex bestand downloaden en openen..." -ForegroundColor Cyan
+    
     try {
-        Write-Host "`nIndex bestand downloaden en openen..." -ForegroundColor Yellow
-        Write-LogMessage "Start download en openen index bestand"
-
         Show-Progress -Activity "Index Bestand" -Status "Voorbereiden..." -PercentComplete 10
         
-        Write-Host "`nVul de volgende klantgegevens in:" -ForegroundColor Cyan
-        Write-Host "--------------------------------" -ForegroundColor Cyan
-        Write-Host "* Klantnummer"
+        Write-Host "`nVul de volgende klantgegevens in:" -ForegroundColor Yellow
+        Write-Host "--------------------------------"
         Write-Host "* Klantnaam"
         Write-Host "* Telefoonnummer"
         Write-Host "* E-mailadres"
-        Write-Host "--------------------------------`n" -ForegroundColor Cyan
-
-        # Get PC Serial Number
-        $serialNumber = Get-PCSerialNumber
-        Write-Host "PC Serienummer: $serialNumber" -ForegroundColor Cyan
-
-        # Create temp directory if it doesn't exist
-        $tempDir = Join-Path $env:TEMP "IndexDownload"
-        if (-not (Test-Path $tempDir)) {
-            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-        }
-
+        Write-Host "--------------------------------`n"
+        
         Show-Progress -Activity "Index Bestand" -Status "Downloaden..." -PercentComplete 30
         
-        # Download index file
-        $indexUrl = "https://raw.githubusercontent.com/VenimK/MusicLover/main/index_updated.html"
-        $indexPath = Join-Path $tempDir "index.html"
+        # Get system serial number
+        $serialNumber = Get-WmiObject -Class Win32_BIOS | Select-Object -ExpandProperty SerialNumber
+        Write-Host "PC Serienummer: $serialNumber" -ForegroundColor Cyan
         
-        Write-Host "`nIndex bestand downloaden..." -ForegroundColor Cyan
-        Write-LogMessage "Index bestand downloaden"
+        # Display client number if available
+        if ($global:ClientNumber) {
+            Write-Host "Klantnummer: $global:ClientNumber" -ForegroundColor Cyan
+        }
         
-        try {
-            $webClient = New-Object System.Net.WebClient
-            $content = $webClient.DownloadString($indexUrl)
-            
-            # Inject JavaScript to set serial number
-            $injectedScript = @"
-<script>
-    window.addEventListener('load', function() {
-        var serialInput = document.getElementById('client-serial');
-        if (serialInput) {
-            serialInput.value = '$serialNumber';
-            serialInput.readOnly = true;
-        }
-    });
-</script>
-</head>
-"@
-            
-            # Insert the script before the closing head tag
-            $content = $content -replace '</head>', $injectedScript
-            
-            # Save modified content
-            [System.IO.File]::WriteAllText($indexPath, $content)
-        }
-        catch {
-            throw "Index bestand download mislukt: $($_.Exception.Message)"
-        }
-
         Show-Progress -Activity "Index Bestand" -Status "Chrome openen..." -PercentComplete 80
         
-        # Start Chrome minimized
-        try {
-            Start-Process chrome.exe -ArgumentList $indexPath -WindowStyle Minimized
-            Start-Sleep -Seconds 2
+        # Open index.html in Chrome (minimized)
+        $indexUrl = "file:///$PSScriptRoot/index_updated.html?serial=$serialNumber"
+        
+        if ($global:ClientNumber) {
+            $indexUrl += "&client=$global:ClientNumber"
         }
-        catch {
-            throw "Chrome starten mislukt: $($_.Exception.Message)"
+        
+        $chromeParams = @{
+            FilePath = "chrome.exe"
+            ArgumentList = "--new-window", $indexUrl
+            WindowStyle = "Minimized"
+            PassThru = $true
         }
-
+        Start-Process @chromeParams | Out-Null
+        
         Show-Progress -Activity "Index Bestand" -Status "Gereed" -PercentComplete 100
         Write-Host "`nIndex bestand succesvol geopend in Chrome (geminimaliseerd)" -ForegroundColor Green
-        Write-LogMessage "Index bestand succesvol geopend in Chrome (geminimaliseerd)"
-        
+        Write-LogMessage "Index bestand geopend in Chrome"
         return $true
     }
     catch {
-        $errorMsg = $_.Exception.Message
-        Write-LogMessage "Index bestand openen mislukt: $errorMsg"
-        Write-Host "`nIndex bestand openen mislukt: $errorMsg" -ForegroundColor Red
+        Write-Host "Fout bij openen index bestand: $_" -ForegroundColor Red
+        Write-LogMessage "Fout bij openen index bestand: $_"
         Show-Progress -Activity "Index Bestand" -Status "Mislukt" -PercentComplete 100
         return $false
     }
@@ -1122,6 +1088,20 @@ function Install-MicrosoftOffice {
     }
 }
 
+function Get-ClientNumber {
+    Write-Host "`nVoer het klantnummer in:" -ForegroundColor Cyan
+    $clientNumber = Read-Host
+    
+    if ($clientNumber) {
+        Write-LogMessage "Klantnummer ingevoerd: $clientNumber"
+        return $clientNumber
+    }
+    
+    Write-Host "Geen klantnummer ingevoerd. Script wordt voortgezet." -ForegroundColor Yellow
+    Write-LogMessage "Geen klantnummer ingevoerd"
+    return $null
+}
+
 # Main script execution
 try {
     Write-Host "=== Windows PC Setup Script ===" -ForegroundColor Cyan
@@ -1139,6 +1119,10 @@ try {
     # Stap 3: WiFi verbinding
     Write-Host "`nStap 3: WiFi verbinding maken..." -ForegroundColor Yellow
     Connect-ToWiFi
+    
+    # Stap 3b: Klantnummer invoeren
+    Write-Host "`nStap 3b: Klantnummer invoeren..." -ForegroundColor Yellow
+    $global:ClientNumber = Get-ClientNumber
     
     # Stap 4: Microsoft Office installatie
     Write-Host "`nStap 4: Microsoft Office installatie" -ForegroundColor Yellow

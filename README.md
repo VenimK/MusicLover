@@ -39,6 +39,11 @@ Het script voert de volgende stappen automatisch uit:
    - Maakt automatisch verbinding met het geconfigureerde WiFi netwerk
    - Gaat door met script bij verbindingsproblemen
 
+3b. **Klantnummer Invoer**
+    - Vraagt om klantnummer
+    - Optionele invoer
+    - Gaat door met script na invoer
+
 4. **Microsoft Office Installatie**
    - Biedt keuze uit verschillende Office versies:
      - Microsoft 365 Business
@@ -91,7 +96,6 @@ Het script voert de volgende stappen automatisch uit:
 13. **Index Bestand**
     - Opent het index configuratiebestand in Chrome
     - Vraagt om klantgegevens:
-      - Klantnummer
       - Klantnaam
       - Telefoonnummer
       - E-mailadres

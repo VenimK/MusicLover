@@ -288,12 +288,25 @@
             return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
         }
 
-        // Fill serial number from URL parameter when page loads
+        // Fill serial number and client number from URL parameters when page loads
         window.addEventListener('load', function() {
             const serialNumber = getUrlParameter('serial');
+            const clientNumber = getUrlParameter('client');
+            
             if (serialNumber) {
-                document.getElementById('client-serial').value = serialNumber;
-                document.getElementById('client-serial').readOnly = true; // Make it read-only since it's auto-filled
+                const serialInput = document.getElementById('client-serial');
+                if (serialInput) {
+                    serialInput.value = serialNumber;
+                    serialInput.readOnly = true;
+                }
+            }
+            
+            if (clientNumber) {
+                const clientInput = document.getElementById('client-number');
+                if (clientInput) {
+                    clientInput.value = clientNumber;
+                    clientInput.readOnly = true;
+                }
             }
         });
 
