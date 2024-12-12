@@ -109,6 +109,30 @@ Het script voert de volgende stappen automatisch uit:
       - Telefoonnummer
       - E-mailadres
 
+## Configuratie
+
+### Email Instellingen
+Voor het verzenden van emails heeft de server een `config.js` bestand nodig met de juiste credentials:
+
+1. Maak een `config.js` bestand aan in de root directory
+2. Voeg de volgende code toe:
+```javascript
+module.exports = {
+    email: {
+        user: 'jouw-email@gmail.com',
+        pass: 'jouw-app-wachtwoord'
+    }
+};
+```
+3. Vervang de credentials met je eigen Gmail gegevens
+4. Het bestand wordt automatisch genegeerd door Git voor veiligheid
+
+**Let op:** 
+- Gebruik nooit je gewone Gmail wachtwoord
+- Maak een App-specifiek wachtwoord aan in je Google Account instellingen
+- Deel het `config.js` bestand nooit met anderen
+- Het bestand staat in `.gitignore` en wordt niet meegestuurd bij commits
+
 ## Logging
 
 Het script houdt een gedetailleerd logbestand bij in:
@@ -141,4 +165,4 @@ Alle acties, waarschuwingen en fouten worden hier geregistreerd voor troubleshoo
 
 ## Licentie
 
- 2024 TechStick. Alle rechten voorbehouden. Contact: @ techmusiclover@outlook.be
+2024 TechStick. Alle rechten voorbehouden. Contact: @ techmusiclover@outlook.be

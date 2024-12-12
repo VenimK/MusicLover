@@ -4,6 +4,7 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const config = require('./config');
 
 const app = express();
 const port = 3000;
@@ -17,13 +18,10 @@ app.use(express.json());
 
 console.log('Server configuratie wordt gestart...');
 
-// Configure email transporter (replace with your email settings)
+// Configure email transporter (using config file)
 const transporter = nodemailer.createTransport({
     service: 'gmail',
-    auth: {
-        user: 'musiclovertech@gmail.com',
-        pass: 'ztda idqv iptz jaww'
-    }
+    auth: config.email
 });
 
 // Verify transporter configuration
@@ -244,6 +242,3 @@ app.listen(port, () => {
     console.log(`Server draait op http://localhost:${port}`);
     console.log('Klaar om PDF-bestanden te verwerken en e-mails te verzenden');
 });
-
-
-
