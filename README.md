@@ -39,21 +39,31 @@ Het script voert de volgende stappen automatisch uit:
    - Maakt automatisch verbinding met het geconfigureerde WiFi netwerk
    - Gaat door met script bij verbindingsproblemen
 
-4. **Winget Installatie**
+4. **Microsoft Office Installatie**
+   - Biedt keuze uit verschillende Office versies:
+     - Microsoft 365 Business
+     - Office 2021
+     - Office 2024
+     - Geen Office installatie
+   - Automatische timeout na 30 seconden
+   - Gebruikt Office Deployment Tool (ODT) voor installatie
+
+5. **Extra Software Pack**
+   - Installeert aanvullende essentiële software
+   - Configureert standaard instellingen
+
+6. **Winget Installatie**
    - Installeert Windows Package Manager (winget)
-   - Essentieel voor andere software installaties
+   - Verwijdert oude versies indien aanwezig
+   - Accepteert Microsoft Store voorwaarden
 
-5. **Belgische eID Software**
-   - Installeert de officiële Belgische eID software
-   - Configureert noodzakelijke componenten
-
-6. **MLPACK Software Pakket**
-   - Download en installeert het MLPACK software pakket
-   - Automatische installatie van essentiële programma's
-
-7. **Index Bestand**
-   - Download het index configuratiebestand
-   - Opent automatisch in Chrome (geminimaliseerd)
+7. **Winget Software**
+   - Installeert essentiële software via winget:
+     - Google Chrome
+     - 7-Zip
+     - VLC Media Player
+     - eID Middleware
+     - eID Viewer
 
 8. **Adobe Reader**
    - Controleert op bestaande Adobe Reader installatie
@@ -74,9 +84,18 @@ Het script voert de volgende stappen automatisch uit:
     - Installeert benodigde NPM packages
     - Configureert development omgeving
 
-12. **Server Start**
+12. **Node.js Server**
     - Start de Node.js server
     - Configureert voor automatische opstart
+
+13. **Index Bestand**
+    - Opent het index configuratiebestand in Chrome
+    - Vraagt om klantgegevens:
+      - Klantnummer
+      - Klantnaam
+      - Telefoonnummer
+      - E-mailadres
+    - Registreert PC serienummer
 
 ## Logging
 

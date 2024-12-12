@@ -1020,6 +1020,108 @@ function Get-PCSerialNumber {
     }
 }
 
+# Function to install Microsoft Office
+function Install-MicrosoftOffice {
+    param (
+        [Parameter(Mandatory=$true)]
+        [ValidateSet('365business.xml', 'Office2021.xml', 'office2024.xml')]
+        [string]$ConfigFile
+    )
+
+    try {
+        Write-Host "`nMicrosoft Office installatie starten..." -ForegroundColor Yellow
+        Write-LogMessage "Start Microsoft Office installatie met configuratie: $ConfigFile"
+
+        # Check for admin rights
+        $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+        $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+        if (-not $isAdmin) {
+            throw "Dit script moet als Administrator worden uitgevoerd voor Office installatie. Start PowerShell opnieuw als Administrator."
+        }
+
+        Show-Progress -Activity "Microsoft Office" -Status "ODT locatie zoeken..." -PercentComplete 10
+
+        # First check USB drives
+        $usbDrives = Get-WmiObject Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 }
+        $fixedDrives = Get-WmiObject Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 }
+        
+        $odtFound = $false
+        $odtPath = $null
+
+        # First try USB drives
+        if ($usbDrives) {
+            Write-Host "USB drive(s) gevonden, controleren op Office map..." -ForegroundColor Yellow
+            foreach ($drive in $usbDrives) {
+                $testPath = Join-Path $drive.DeviceID "Office"
+                if (Test-Path $testPath) {
+                    $odtPath = $testPath
+                    $odtFound = $true
+                    Write-Host "Office map gevonden op USB drive $($drive.DeviceID)" -ForegroundColor Green
+                    break
+                }
+            }
+        }
+
+        # If not found on USB, try fixed drives
+        if (-not $odtFound) {
+            Write-Host "Office niet gevonden op USB drives, controleren vaste schijven..." -ForegroundColor Yellow
+            foreach ($drive in $fixedDrives) {
+                $testPath = Join-Path $drive.DeviceID "Office"
+                if (Test-Path $testPath) {
+                    $odtPath = $testPath
+                    $odtFound = $true
+                    Write-Host "Office map gevonden op vaste schijf $($drive.DeviceID)" -ForegroundColor Green
+                    break
+                }
+            }
+        }
+
+        if (-not $odtFound) {
+            throw "Office map niet gevonden. Sluit een USB drive aan met de Office map of maak deze aan op een vaste schijf."
+        }
+
+        Show-Progress -Activity "Microsoft Office" -Status "Configuratie controleren..." -PercentComplete 30
+
+        # Verify config file exists
+        $configPath = Join-Path $odtPath $ConfigFile
+        if (-not (Test-Path $configPath)) {
+            throw "Configuratie bestand $ConfigFile niet gevonden in Office map."
+        }
+
+        Show-Progress -Activity "Microsoft Office" -Status "Setup.exe controleren..." -PercentComplete 50
+
+        # Start installation
+        $setupPath = Join-Path $odtPath "setup.exe"
+        if (-not (Test-Path $setupPath)) {
+            throw "setup.exe niet gevonden in Office map."
+        }
+
+        Show-Progress -Activity "Microsoft Office" -Status "Installatie starten..." -PercentComplete 70
+        Write-Host "Office installatie starten met $ConfigFile..." -ForegroundColor Yellow
+        Write-LogMessage "Office installatie gestart met configuratie: $ConfigFile"
+
+        # Execute ODT with configuration
+        $process = Start-Process -FilePath $setupPath -ArgumentList "/configure", $configPath -Wait -PassThru -NoNewWindow
+        
+        if ($process.ExitCode -eq 0) {
+            Show-Progress -Activity "Microsoft Office" -Status "Installatie voltooid" -PercentComplete 100
+            Write-Host "Microsoft Office installatie succesvol afgerond" -ForegroundColor Green
+            Write-LogMessage "Microsoft Office installatie succesvol afgerond"
+            return $true
+        } else {
+            throw "Office installatie mislukt met exit code: $($process.ExitCode)"
+        }
+    }
+    catch {
+        $errorMsg = $_.Exception.Message
+        Write-Host "Microsoft Office installatie mislukt: $errorMsg" -ForegroundColor Red
+        Write-LogMessage "Microsoft Office installatie mislukt: $errorMsg"
+        Show-Progress -Activity "Microsoft Office" -Status "Installatie mislukt" -PercentComplete 100
+        return $false
+    }
+}
+
 # Main script execution
 try {
     Write-Host "=== Windows PC Setup Script ===" -ForegroundColor Cyan
@@ -1036,39 +1138,81 @@ try {
 
     # Stap 3: WiFi verbinding
     Write-Host "`nStap 3: WiFi verbinding maken..." -ForegroundColor Yellow
-    if (-not (Connect-ToWiFi)) {
-        Write-Host "WiFi verbinding mislukt, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "WiFi verbinding mislukt, script gaat door"
+    Connect-ToWiFi
+    
+    # Stap 4: Microsoft Office installatie
+    Write-Host "`nStap 4: Microsoft Office installatie" -ForegroundColor Yellow
+    Write-Host "Kies een Office versie om te installeren:" -ForegroundColor Cyan
+    Write-Host "1. Microsoft 365 Business"
+    Write-Host "2. Office 2021"
+    Write-Host "3. Office 2024"
+    Write-Host "4. Geen Office installatie"
+    Write-Host "(Automatisch overslaan na 30 seconden)" -ForegroundColor Gray
+    
+    $timeoutSeconds = 30
+    $choice = $null
+    $startTime = Get-Date
+    
+    while (-not $choice -and ((Get-Date) - $startTime).TotalSeconds -lt $timeoutSeconds) {
+        if ([Console]::KeyAvailable) {
+            $key = [Console]::ReadKey($true)
+            if ($key.KeyChar -match '[1-4]') {
+                $choice = $key.KeyChar
+                Write-Host "Keuze: $choice"
+            }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    
+    switch ($choice) {
+        "1" { 
+            Install-MicrosoftOffice -ConfigFile "365business.xml"
+        }
+        "2" { 
+            Install-MicrosoftOffice -ConfigFile "Office2021.xml"
+        }
+        "3" { 
+            Install-MicrosoftOffice -ConfigFile "office2024.xml"
+        }
+        default {
+            if ($choice) {
+                Write-Host "Office installatie overgeslagen." -ForegroundColor Yellow
+                Write-LogMessage "Office installatie overgeslagen door gebruiker"
+            } else {
+                Write-Host "Geen keuze gemaakt binnen 30 seconden. Office installatie overgeslagen." -ForegroundColor Yellow
+                Write-LogMessage "Office installatie overgeslagen: timeout"
+            }
+        }
     }
 
-    # Stap 4: Extra Software Pack
-    Write-Host "`nStap 4: Extra Software Pack controleren..." -ForegroundColor Yellow
+    # Stap 5: Extra Software Pack
+    Write-Host "`nStap 5: Extra Software Pack controleren..." -ForegroundColor Yellow
     Install-ExtraSoftwarePack
 
-    # Stap 5: Winget installatie
-    Write-Host "`nStap 5: Winget installeren..." -ForegroundColor Yellow
+    # Stap 6: Winget installatie
+    Write-Host "`nStap 6: Winget installeren..." -ForegroundColor Yellow
     if (-not (Install-Winget)) {
         Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
         Write-LogMessage "Winget installatie mislukt, script gaat door"
     }
 
-    # Stap 6: Winget software installatie
-    Write-Host "`nStap 6: Winget software installeren..." -ForegroundColor Yellow
+    # Stap 7: Winget software installatie
+    Write-Host "`nStap 7: Winget software installeren..." -ForegroundColor Yellow
     Install-WingetSoftware
 
-    # Stap 7: Adobe Reader installatie
-    Write-Host "`nStap 7: Adobe Reader installeren..." -ForegroundColor Yellow
+    # Stap 8: Adobe Reader installatie
+    Write-Host "`nStap 8: Adobe Reader installeren..." -ForegroundColor Yellow
     Install-AdobeReader
 
-    # Stap 8: Windows updates installeren
-    Write-Host "`nStap 8: Windows updates installeren..." -ForegroundColor Yellow
+    # Stap 9: Windows updates installeren
+    Write-Host "`nStap 9: Windows updates installeren..." -ForegroundColor Yellow
     if (-not (Install-WindowsUpdates)) {
         Write-Host "Windows updates gefaald, maar script gaat door..." -ForegroundColor Yellow
         Write-LogMessage "Windows updates gefaald, script gaat door"
     }
 
-    # Stap 9: Node.js installatie
-    Write-Host "`nStap 9: Node.js installatie controleren..." -ForegroundColor Yellow
+    # Stap 10: Node.js installatie
+    Write-Host "`nStap 10: Node.js installatie controleren..." -ForegroundColor Yellow
     if (-not (Test-NodeJS)) {
         Write-Host "Node.js niet gevonden. Installatie starten..." -ForegroundColor Yellow
         if (-not (Install-NodeJS)) {
@@ -1081,20 +1225,20 @@ try {
         }
     }
 
-    # Stap 10: NPM packages installeren
-    Write-Host "`nStap 10: NPM packages installeren..." -ForegroundColor Yellow
+    # Stap 11: NPM packages installeren
+    Write-Host "`nStap 11: NPM packages installeren..." -ForegroundColor Yellow
     if (-not (Install-NpmPackages)) {
         throw "NPM packages installatie mislukt"
     }
 
-    # Stap 11: Server starten
-    Write-Host "`nStap 11: Node.js server starten..." -ForegroundColor Yellow
+    # Stap 12: Server starten
+    Write-Host "`nStap 12: Node.js server starten..." -ForegroundColor Yellow
     if (-not (Start-NodeServer)) {
         throw "Server starten mislukt"
     }
 
-    # Stap 12: Index openen
-    Write-Host "`nStap 12: Index openen..." -ForegroundColor Yellow
+    # Stap 13: Index openen
+    Write-Host "`nStap 13: Index openen..." -ForegroundColor Yellow
     Open-IndexFile
 
     Write-Host "`nSetup succesvol afgerond!" -ForegroundColor Green
