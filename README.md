@@ -141,4 +141,4 @@ Alle acties, waarschuwingen en fouten worden hier geregistreerd voor troubleshoo
 
 ## Licentie
 
- 2024 TechStick. Alle rechten voorbehouden.
+ 2024 TechStick. Alle rechten voorbehouden. Contact: @ techmusiclover@outlook.be
