@@ -50,7 +50,7 @@ Het script voert de volgende stappen automatisch uit:
      - Office 2021
      - Office 2024
      - Geen Office installatie
-   - Automatische timeout na 30 seconden
+   - 30 seconden timeout voor automatisch overslaan
    - Gebruikt Office Deployment Tool (ODT) voor installatie
 
 5. **Extra Software Pack**
@@ -58,17 +58,20 @@ Het script voert de volgende stappen automatisch uit:
    - Configureert standaard instellingen
 
 6. **Winget Installatie**
-   - Installeert Windows Package Manager (winget)
-   - Verwijdert oude versies indien aanwezig
+   - Verwijdert oude Winget versies indien aanwezig
+   - Downloadt en installeert nieuwste Winget versie
    - Accepteert Microsoft Store voorwaarden
+   - Verifieert succesvolle installatie
 
-7. **Winget Software**
-   - Installeert essentiële software via winget:
+7. **Winget Software Installatie**
+   - Installeert essentiële software via Winget:
      - Google Chrome
      - 7-Zip
      - VLC Media Player
      - eID Middleware
      - eID Viewer
+   - Controleert op bestaande installaties
+   - Update bestaande software indien nodig
 
 8. **Adobe Reader**
    - Controleert op bestaande Adobe Reader installatie
@@ -79,6 +82,7 @@ Het script voert de volgende stappen automatisch uit:
    - Controleert op beschikbare Windows updates
    - Downloadt en installeert belangrijke updates
    - Toont voortgang van de installatie
+   - Gaat door bij updatefouten
 
 10. **Node.js Installatie**
     - Controleert op bestaande Node.js installatie
@@ -88,18 +92,22 @@ Het script voert de volgende stappen automatisch uit:
 11. **NPM Packages**
     - Installeert benodigde NPM packages
     - Configureert development omgeving
+    - Verifieert succesvolle installatie
 
 12. **Node.js Server**
     - Start de Node.js server
-    - Configureert voor automatische opstart
+    - Verifieert server status
+    - Configureert voor lokale toegang (http://localhost:3000)
 
 13. **Index Bestand**
-    - Opent het index configuratiebestand in Chrome
-    - Vraagt om klantgegevens:
+    - Opent index_updated.html in Chrome (geminimaliseerd)
+    - Vult automatisch in:
+      - PC Serienummer (uit BIOS)
+      - Klantnummer (indien ingevoerd)
+    - Vraagt om aanvullende klantgegevens:
       - Klantnaam
       - Telefoonnummer
       - E-mailadres
-    - Registreert PC serienummer
 
 ## Logging
 
