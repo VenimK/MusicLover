@@ -20,8 +20,18 @@ cd TechStick
 
 2. Start het script met administrator rechten:
 ```powershell
+# Standaard uitvoering
 powershell.exe -ExecutionPolicy Bypass -File newpc_fixed.ps1
+
+# Uitvoering zonder Windows Updates
+powershell.exe -ExecutionPolicy Bypass -File newpc_fixed.ps1 -SkipWindowsUpdates
 ```
+
+## Parameters
+
+| Parameter | Type | Beschrijving |
+|-----------|------|--------------|
+| `-SkipWindowsUpdates` | Switch | Optionele parameter om de Windows Updates installatie over te slaan. Handig voor test doeleinden of wanneer updates later uitgevoerd moeten worden. |
 
 ## Gedetailleerde Stappen
 
@@ -108,6 +118,16 @@ Het script voert de volgende stappen automatisch uit:
       - Klantnaam
       - Telefoonnummer
       - E-mailadres
+
+14. **Energie-instellingen Terugzetten**
+    - Zet alle energie-instellingen terug naar Windows standaardwaarden
+    - Activeert het 'Balanced' energieplan
+    - Herstelt standaard timeouts voor:
+      - Beeldscherm (15 min op netstroom, 5 min op batterij)
+      - Slaapstand (30 min op netstroom, 15 min op batterij)
+      - Harde schijf (20 min)
+    - Schakelt slaapstand weer in
+    - Herstelt USB energiebeheer
 
 ## Configuratie
 

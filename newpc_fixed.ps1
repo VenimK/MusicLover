@@ -1,3 +1,8 @@
+# Script parameters
+param(
+    [switch]$SkipWindowsUpdates
+)
+
 # Script configuratie
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -780,6 +785,45 @@ function Set-OptimalPowerSettings {
     }
 }
 
+# Function to restore default power settings
+function Restore-DefaultPowerSettings {
+    try {
+        Write-Host "Energie-instellingen terugzetten naar standaard..." -ForegroundColor Yellow
+        Write-LogMessage "Energie-instellingen terugzetten gestart"
+
+        # Set power plan to Balanced
+        $powerPlan = Get-WmiObject -Namespace root\cimv2\power -Class Win32_PowerPlan | Where-Object { $_.ElementName -eq "Balanced" }
+        if ($powerPlan) {
+            $powerPlan.Activate()
+            Write-Host "Balanced energieplan geactiveerd" -ForegroundColor Green
+        }
+
+        # Restore default power settings using powercfg
+        # Default display timeout (15 minutes when plugged in, 5 minutes on battery)
+        powercfg /change monitor-timeout-ac 15
+        powercfg /change monitor-timeout-dc 5
+        # Default sleep settings (30 minutes when plugged in, 15 minutes on battery)
+        powercfg /change standby-timeout-ac 30
+        powercfg /change standby-timeout-dc 15
+        # Default hard disk timeout (20 minutes)
+        powercfg /change disk-timeout-ac 20
+        powercfg /change disk-timeout-dc 20
+        # Enable hibernate
+        powercfg /hibernate on
+        # Enable USB selective suspend
+        powercfg /setacvalueindex scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1
+        # Apply changes
+        powercfg /setactive scheme_current
+
+        Write-Host "Energie-instellingen succesvol teruggezet naar standaard" -ForegroundColor Green
+        Write-LogMessage "Energie-instellingen succesvol teruggezet naar standaard"
+    }
+    catch {
+        Write-LogMessage "Energie-instellingen terugzetten mislukt: $($_.Exception.Message)"
+        Write-Host "Energie-instellingen terugzetten mislukt" -ForegroundColor Red
+    }
+}
+
 # Function to install Winget
 function Install-Winget {
     try {
@@ -1189,10 +1233,15 @@ try {
     Install-AdobeReader
 
     # Stap 9: Windows updates installeren
-    Write-Host "`nStap 9: Windows updates installeren..." -ForegroundColor Yellow
-    if (-not (Install-WindowsUpdates)) {
-        Write-Host "Windows updates gefaald, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "Windows updates gefaald, script gaat door"
+    if ($SkipWindowsUpdates) {
+        Write-Host "`nStap 9: Windows updates overgeslagen (SkipWindowsUpdates parameter gebruikt)..." -ForegroundColor Yellow
+        Write-LogMessage "Windows updates overgeslagen door SkipWindowsUpdates parameter"
+    } else {
+        Write-Host "`nStap 9: Windows updates installeren..." -ForegroundColor Yellow
+        if (-not (Install-WindowsUpdates)) {
+            Write-Host "Windows updates gefaald, maar script gaat door..." -ForegroundColor Yellow
+            Write-LogMessage "Windows updates gefaald, script gaat door"
+        }
     }
 
     # Stap 10: Node.js installatie
@@ -1224,6 +1273,10 @@ try {
     # Stap 13: Index openen
     Write-Host "`nStap 13: Index openen..." -ForegroundColor Yellow
     Open-IndexFile
+
+    # Stap 14: Energie-instellingen terugzetten
+    Write-Host "`nStap 14: Energie-instellingen terugzetten..." -ForegroundColor Yellow
+    Restore-DefaultPowerSettings
 
     Write-Host "`nSetup succesvol afgerond!" -ForegroundColor Green
     Write-LogMessage "Script succesvol afgerond"
