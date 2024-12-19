@@ -1,12 +1,26 @@
 # Script parameters
 param(
-    [switch]$SkipWindowsUpdates
+    [switch]$SkipWindowsUpdates,
+    [string]$WifiSSID,
+    [string]$WifiPassword
 )
+
+# Check for Administrator privileges
+function Test-Administrator {
+    $currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    return $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+if (-not (Test-Administrator)) {
+    Write-Host "Dit script vereist Administrator rechten. Start PowerShell als Administrator en probeer opnieuw." -ForegroundColor Red
+    exit 1
+}
 
 # Script configuratie
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $logFile = Join-Path $env:TEMP "newpc_setup.log"
+$configFile = Join-Path $PSScriptRoot "config.ps1"
 
 # Function to log messages
 function Write-LogMessage {
@@ -79,10 +93,39 @@ function Show-Progress {
 # WiFi Connection Function
 function Connect-ToWiFi {
     param (
-        [string]$SSID = "Music lover",
-        [string]$Password = "1234poiu"
+        [Parameter(Mandatory=$false)]
+        [string]$SSID,
+        [Parameter(Mandatory=$false)]
+        [string]$Password
     )
     
+    # Try to load config file if parameters are not provided
+    if (-not $SSID -or -not $Password) {
+        if (Test-Path $configFile) {
+            try {
+                . $configFile
+                if (-not $SSID) { $SSID = $WifiConfig.SSID }
+                if (-not $Password) { $Password = $WifiConfig.Password }
+            }
+            catch {
+                Write-Host "Fout bij laden van WiFi configuratie: $($_.Exception.Message)" -ForegroundColor Red
+                Write-LogMessage "Fout bij laden van WiFi configuratie: $($_.Exception.Message)"
+                return $false
+            }
+        }
+        
+        # If still no credentials, prompt user
+        if (-not $SSID) {
+            Write-Host "Voer WiFi SSID in:" -ForegroundColor Cyan
+            $SSID = Read-Host
+        }
+        if (-not $Password) {
+            Write-Host "Voer WiFi wachtwoord in:" -ForegroundColor Cyan
+            $Password = Read-Host -AsSecureString
+            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password))
+        }
+    }
+
     Write-Host "Automatisch verbinden met $SSID..." -ForegroundColor Yellow
     Write-LogMessage "Poging tot verbinden met WiFi netwerk: $SSID"
 
@@ -1162,7 +1205,10 @@ try {
 
     # Stap 3: WiFi verbinding
     Write-Host "`nStap 3: WiFi verbinding maken..." -ForegroundColor Yellow
-    Connect-ToWiFi
+    $wifiParams = @{}
+    if ($WifiSSID) { $wifiParams['SSID'] = $WifiSSID }
+    if ($WifiPassword) { $wifiParams['Password'] = $WifiPassword }
+    Connect-ToWiFi @wifiParams
     
     # Stap 3b: Klantnummer invoeren
     Write-Host "`nStap 3b: Klantnummer invoeren..." -ForegroundColor Yellow

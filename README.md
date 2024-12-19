@@ -131,6 +131,35 @@ Het script voert de volgende stappen automatisch uit:
 
 ## Configuratie
 
+### WiFi Instellingen
+Voor het configureren van de WiFi-verbinding zijn er drie opties:
+
+1. **Configuratiebestand gebruiken (aanbevolen voor herhaald gebruik):**
+   - Kopieer `config.template.ps1` naar `config.ps1`
+   - Bewerk `config.ps1` met je WiFi-gegevens:
+   ```powershell
+   $Global:WifiConfig = @{
+       SSID = "JouwWiFiNetwerk"
+       Password = "JouwWiFiWachtwoord"
+   }
+   ```
+   - `config.ps1` wordt automatisch genegeerd door Git voor veiligheid
+
+2. **Parameters gebruiken (voor eenmalig gebruik):**
+   ```powershell
+   .\newpc_fixed.ps1 -WifiSSID "JouwWiFiNetwerk" -WifiPassword "JouwWiFiWachtwoord"
+   ```
+
+3. **Interactieve invoer:**
+   - Start het script zonder parameters
+   - Voer de WiFi-gegevens in wanneer daarom wordt gevraagd
+
+**Veiligheidsnotities:**
+- Deel NOOIT je `config.ps1` bestand met anderen
+- Voeg het NOOIT toe aan version control
+- Het bestand staat in `.gitignore` en wordt niet meegestuurd bij commits
+- Gebruik bij voorkeur een apart netwerk voor setup doeleinden
+
 ### Email Instellingen
 Voor het verzenden van emails heeft de server een `config.js` bestand nodig met de juiste credentials:
 

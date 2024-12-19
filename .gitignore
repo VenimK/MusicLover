@@ -2,4 +2,6 @@ node_modules/
 .env
 *.log
 .DS_Store
+# Configuration files with sensitive data
+config.ps1
 config.js
