@@ -842,46 +842,10 @@ function Install-AdobeReader {
         Write-Host "`nAdobe Reader installatie controleren..." -ForegroundColor Yellow
         Write-LogMessage "Start Adobe Reader installatie check"
 
-        # Check multiple registry locations for Adobe Reader
-        $paths = @(
-            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
-            "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
-        )
-        
-        $adobeInstalled = $false
-        foreach ($path in $paths) {
-            if (Test-Path $path) {
-                $installed = Get-ItemProperty $path | 
-                    Where-Object { 
-                        $_.DisplayName -like "*Adobe Acrobat*" -or 
-                        $_.DisplayName -like "*Adobe Reader*" -or
-                        $_.DisplayName -like "*Acrobat Reader*"
-                    }
-                if ($installed) {
-                    $adobeInstalled = $true
-                    $version = $installed.DisplayName
-                    break
-                }
-            }
-        }
+        # Check if Adobe Reader is already installed using Winget
+        $installedReader = winget list --id Adobe.AcrobatReader.64-bit --accept-source-agreements
 
-        # Also check common installation paths
-        $commonPaths = @(
-            "$env:ProgramFiles\Adobe\Acrobat DC\Acrobat\Acrobat.exe",
-            "$env:ProgramFiles\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
-            "${env:ProgramFiles(x86)}\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe",
-            "$env:ProgramFiles\Adobe\Reader 11.0\Reader\AcroRd32.exe",
-            "${env:ProgramFiles(x86)}\Adobe\Reader 11.0\Reader\AcroRd32.exe"
-        )
-
-        foreach ($path in $commonPaths) {
-            if (Test-Path $path) {
-                $adobeInstalled = $true
-                break
-            }
-        }
-
-        if ($adobeInstalled) {
+        if ($installedReader) {
             Write-Host "Adobe Reader is al geinstalleerd. Installatie wordt overgeslagen." -ForegroundColor Green
             Write-LogMessage "Adobe Reader is al geinstalleerd"
             Show-Progress -Activity "Adobe Reader" -Status "Reeds geinstalleerd" -PercentComplete 100
@@ -889,92 +853,30 @@ function Install-AdobeReader {
         }
 
         Show-Progress -Activity "Adobe Reader" -Status "Voorbereiden..." -PercentComplete 10
-        
-        # Create temp directory
-        $userTemp = [System.IO.Path]::GetTempPath()
-        $tempDir = Join-Path $userTemp "AdobeReaderInstall"
-        if (-not (Test-Path $tempDir)) {
-            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-        }
 
-        Show-Progress -Activity "Adobe Reader" -Status "Downloaden..." -PercentComplete 20
+        # Install Adobe Reader using Winget with Dutch locale
+        Write-Host "Adobe Reader installeren..." -ForegroundColor Cyan
+        Write-LogMessage "Adobe Reader installeren via Winget"
         
-        # Download Adobe Reader
-        $adobeUrl = "https://admdownload.adobe.com/rdcm/installers/live/readerdc64.exe"
-        $installerPath = Join-Path $tempDir "AdobeReaderDC.exe"
-        
-        Show-Progress -Activity "Adobe Reader" -Status "Bestand ophalen..." -PercentComplete 40
-        try {
-            $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($adobeUrl, $installerPath)
-        }
-        catch {
-            throw "Adobe Reader download mislukt: $($_.Exception.Message)"
-        }
-
         Show-Progress -Activity "Adobe Reader" -Status "Installeren..." -PercentComplete 50
-        Write-Host "`nAdobe Reader installeren..." -ForegroundColor Cyan
-        Write-LogMessage "Adobe Reader installeren"
-        $arguments = "/sAll /rs /msi /norestart /quiet EULA_ACCEPT=YES"
         
-        # Start installation process with admin rights
-        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $pinfo.FileName = $installerPath
-        $pinfo.Arguments = $arguments
-        $pinfo.UseShellExecute = $true
-        $pinfo.Verb = "runas"
-        
-        $process = New-Object System.Diagnostics.Process
-        $process.StartInfo = $pinfo
-        $process.Start() | Out-Null
-        $process.WaitForExit()
+        $installResult = Start-Process winget -ArgumentList "install", "-e", "--id", "Adobe.AcrobatReader.64-bit", "--locale", "nl-NL", "--silent" -Wait -PassThru
 
-        if ($process.ExitCode -ne 0) {
-            throw "Adobe Reader installatie mislukt met exit code: $($process.ExitCode)"
+        if ($installResult.ExitCode -eq 0) {
+            Write-Host "Adobe Reader succesvol geïnstalleerd." -ForegroundColor Green
+            Write-LogMessage "Adobe Reader installatie succesvol"
+            Show-Progress -Activity "Adobe Reader" -Status "Geïnstalleerd" -PercentComplete 100
+            return $true
         }
-
-        Show-Progress -Activity "Adobe Reader" -Status "PDF associatie instellen..." -PercentComplete 80
-        
-        # Set Adobe Reader as default PDF application
-        try {
-            $assocPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice"
-            if (Test-Path $assocPath) {
-                Remove-Item -Path $assocPath -Force -Recurse
-            }
-            Start-Process "cmd.exe" -ArgumentList "/c ftype AcroExch.Document.DC=`"$env:ProgramFiles\Adobe\Acrobat DC\Acrobat\Acrobat.exe`" `"%1`"" -Verb runas -Wait
-            Start-Process "cmd.exe" -ArgumentList "/c assoc .pdf=AcroExch.Document.DC" -Verb runas -Wait
+        else {
+            throw "Adobe Reader installatie mislukt met exit code $($installResult.ExitCode)"
         }
-        catch {
-            Write-LogMessage "Waarschuwing: Kon PDF associatie niet instellen: $($_.Exception.Message)"
-            # Continue even if association fails
-        }
-
-        # Cleanup
-        Show-Progress -Activity "Adobe Reader" -Status "Opruimen..." -PercentComplete 90
-        Start-Sleep -Seconds 2  # Wait a bit before cleanup
-        try {
-            if (Test-Path $installerPath) {
-                Remove-Item $installerPath -Force -ErrorAction Stop
-            }
-            if (Test-Path $tempDir) {
-                Remove-Item $tempDir -Force -Recurse -ErrorAction Stop
-            }
-        }
-        catch {
-            Write-LogMessage "Cleanup waarschuwing: $($_.Exception.Message)"
-            # Continue even if cleanup fails
-        }
-
-        Show-Progress -Activity "Adobe Reader" -Status "Voltooid" -PercentComplete 100
-        Write-Host "`nAdobe Reader installatie voltooid" -ForegroundColor Green
-        Write-LogMessage "Adobe Reader installatie voltooid"
-        return $true
     }
     catch {
         $errorMsg = $_.Exception.Message
         Write-Host "`nAdobe Reader installatie mislukt: $errorMsg" -ForegroundColor Red
         Write-LogMessage "Adobe Reader installatie mislukt: $errorMsg"
-        Show-Progress -Activity "Adobe Reader" -Status "Mislukt" -PercentComplete 100
+        Show-Progress -Activity "Adobe Reader" -Status "Installatie mislukt" -PercentComplete 100
         return $false
     }
 }
