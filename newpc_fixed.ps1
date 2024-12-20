@@ -775,6 +775,45 @@ function Start-NodeServer {
         
         Show-Progress -Activity "Server" -Status "Voorbereiden..." -PercentComplete 20
         
+        # Firewall configuratie voor poort 3000
+        try {
+            # Verwijder bestaande regels (voorkomt dubbele regels)
+            $existingInboundRule = Get-NetFirewallRule -DisplayName "Node.js Server Inkomend (Poort 3000)" -ErrorAction SilentlyContinue
+            if ($existingInboundRule) {
+                Remove-NetFirewallRule -DisplayName "Node.js Server Inkomend (Poort 3000)"
+            }
+
+            # Maak nieuwe inkomende firewallregel
+            New-NetFirewallRule `
+                -DisplayName "Node.js Server Inkomend (Poort 3000)" `
+                -Direction Inbound `
+                -Protocol TCP `
+                -LocalPort 3000 `
+                -Action Allow `
+                -Enabled True `
+                -Profile Any `
+                -Description "Inkomende verbinding voor Node.js server op poort 3000"
+
+            # Maak ook een uitgaande regel
+            $existingOutboundRule = Get-NetFirewallRule -DisplayName "Node.js Server Uitgaand (Poort 3000)" -ErrorAction SilentlyContinue
+            if ($existingOutboundRule) {
+                Remove-NetFirewallRule -DisplayName "Node.js Server Uitgaand (Poort 3000)"
+            }
+
+            New-NetFirewallRule `
+                -DisplayName "Node.js Server Uitgaand (Poort 3000)" `
+                -Direction Outbound `
+                -Protocol TCP `
+                -LocalPort 3000 `
+                -Action Allow `
+                -Enabled True `
+                -Profile Any `
+                -Description "Uitgaande verbinding voor Node.js server op poort 3000"
+        }
+        catch {
+            Write-Host "Waarschuwing: Fout bij configureren firewall: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+        
         # Start server.js in a new window
         $serverPath = Join-Path $PSScriptRoot "server.js"
         if (-not (Test-Path $serverPath)) {

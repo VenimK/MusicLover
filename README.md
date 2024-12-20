@@ -1,119 +1,114 @@
-# TechStick PC Setup Script
+# Windows PC Setup Script
 
 Een PowerShell script voor het automatisch installeren en configureren van nieuwe PC's.
 
-## Functies
+## Beschrijving
 
-- Automatische installatie van essentiële software
-- Professionele voortgangsindicator voor alle installaties
-- Uitgebreide foutafhandeling en logging
-- Automatische configuratie van systeem- en programma-instellingen
+Dit PowerShell-script is ontworpen om een nieuwe Windows-computer snel en geautomatiseerd in te stellen met de volgende functies:
+- Netwerk verbinding configureren
+- Systeeminstellingen optimaliseren
+- Software installeren
+- Windows updates beheren
 
-## Installatie
+## Gebruik van het Script
 
-1. Download het script:
+### Scriptparameters
+
+Het script ondersteunt verschillende opdrachtregelparameters om het gedrag aan te passen:
+
 ```powershell
-# Clone de repository
-git clone [repository-url]
-cd TechStick
+.\newpc_fixed.ps1 [Opties]
 ```
 
-2. Start het script met administrator rechten:
+#### Beschikbare Opties:
+- `-WifiSSID`: Specificeer WiFi-netwerknaam
+- `-WifiWachtwoord`: Verstrek WiFi-wachtwoord
+- `-WindowsUpdatesOverslaan`: Sla Windows Update proces over
+- `-Uitgebreid`: Schakel gedetailleerde logging en uitgebreide uitvoer in
+- `-DroogDraaien`: Voer script uit in simulatiemodus (geen wijzigingen)
+
+### Voorbeelden van Gebruik
+
 ```powershell
 # Standaard uitvoering
-powershell.exe -ExecutionPolicy Bypass -File newpc_fixed.ps1
-
-# Uitvoering zonder Windows Updates
-powershell.exe -ExecutionPolicy Bypass -File newpc_fixed.ps1 -SkipWindowsUpdates
-```
-
-## Script Usage and Parameters
-
-### Command-Line Options
-
-The script supports several command-line parameters to customize its behavior:
-
-```powershell
-.\newpc_fixed.ps1 [Options]
-```
-
-#### Available Options:
-- `-WifiSSID`: Specify WiFi network name
-- `-WifiPassword`: Provide WiFi password
-- `-SkipWindowsUpdates`: Skip Windows Update process
-- `-Verbose`: Enable detailed logging and verbose output
-- `-DryRun`: Run script in simulation mode (no changes made)
-
-### Example Usages
-
-```powershell
-# Standard execution
 .\newpc_fixed.ps1
 
-# Provide WiFi credentials
-.\newpc_fixed.ps1 -WifiSSID "MyNetwork" -WifiPassword "SecurePass"
+# WiFi-credentials verstrekken
+.\newpc_fixed.ps1 -WifiSSID "MijnNetwerk" -WifiWachtwoord "VeiligWachtwoord"
 
-# Skip Windows Updates
-.\newpc_fixed.ps1 -SkipWindowsUpdates
+# Windows Updates overslaan
+.\newpc_fixed.ps1 -WindowsUpdatesOverslaan
 
-# Verbose logging for debugging
-.\newpc_fixed.ps1 -Verbose
+# Uitgebreide logging voor probleemoplossing
+.\newpc_fixed.ps1 -Uitgebreid
 
-# Dry run (simulation mode)
-.\newpc_fixed.ps1 -DryRun
+# Droog draaien (simulatiemodus)
+.\newpc_fixed.ps1 -DroogDraaien
 ```
 
-### Network Connectivity
+### Netwerkverbinding
 
-#### Improved Connection Detection
-- Uses parallel testing of multiple DNS servers
-- Supports LAN and WiFi connections
-- Faster and more reliable network detection
-- Checks Google, Cloudflare, and Quad9 DNS servers
+#### Verbeterde Verbindingsdetectie
+- Gebruikt parallelle tests van meerdere DNS-servers
+- Ondersteunt LAN- en WiFi-verbindingen
+- Snellere en betrouwbaardere netwerkdetectie
+- Controleert Google, Cloudflare en Quad9 DNS-servers
 
-#### Connection Priorities
-1. Check for active LAN connection
-2. Test internet connectivity via multiple DNS servers
-3. Attempt WiFi connection if no network found
-4. Prompt for WiFi credentials if needed
+#### Verbindingsprioriteiten
+1. Controleer op actieve LAN-verbinding
+2. Test internetconnectiviteit via meerdere DNS-servers
+3. Probeer WiFi-verbinding indien geen netwerk gevonden
+4. Vraag om WiFi-credentials indien nodig
 
-### Logging and Debugging
+### Logging en Foutopsporing
 
-#### Log Levels
-- Standard output
-- Verbose mode for detailed logging
-- Color-coded console messages
-- Persistent log file for tracking script execution
+#### Log Niveaus
+- Standaard uitvoer
+- Uitgebreide modus voor gedetailleerde logging
+- Kleur-gecodeerde console-berichten
+- Permanente logbestanden voor het volgen van scriptuitvoering
 
-#### Error Handling
-- Comprehensive error logging
-- Detailed error messages
-- Prevents script execution with missing dependencies
+#### Foutafhandeling
+- Uitgebreide fout-logging
+- Gedetailleerde foutmeldingen
+- Voorkomt scriptuitvoering bij ontbrekende afhankelijkheden
 
-### System Requirements
+### Systeemvereisten
 
-#### Minimum Requirements
-- PowerShell 5.1 or later
-- Windows 10 or Windows 11
-- Administrator privileges
+#### Minimale Vereisten
+- PowerShell 5.1 of hoger
+- Windows 10 of Windows 11
+- Beheerdersbevoegdheden
 
-#### Required Tools
+#### Vereiste Hulpmiddelen
 - Winget
 - NetSh
-- Optional: PSWindowsUpdate module
+- Optioneel: PSWindowsUpdate module
 
-### Troubleshooting
+### Probleemoplossing
 
-- Use `-Verbose` flag for detailed diagnostics
-- Check log files for specific error information
-- Ensure all dependencies are installed
-- Run script with administrator privileges
+- Gebruik de `-Uitgebreid` vlag voor gedetailleerde diagnostiek
+- Controleer logbestanden voor specifieke foutinformatie
+- Zorg ervoor dat alle afhankelijkheden zijn geïnstalleerd
+- Voer het script uit met beheerdersbevoegdheden
+
+## Installatie-instructies
+
+1. Zorg dat PowerShell is ingesteld op het uitvoeren van scripts
+2. Download het script
+3. Open PowerShell als beheerder
+4. Navigeer naar de scriptlocatie
+5. Voer het script uit met de gewenste opties
+
+## Disclaimer
+
+Dit script wordt geleverd "zoals het is" zonder enige garantie. Gebruik het script op eigen risico en maak altijd een back-up van uw systeem voordat u grote wijzigingen aanbrengt.
 
 ## Parameters
 
 | Parameter | Type | Beschrijving |
 |-----------|------|--------------|
-| `-SkipWindowsUpdates` | Switch | Optionele parameter om de Windows Updates installatie over te slaan. Handig voor test doeleinden of wanneer updates later uitgevoerd moeten worden. |
+| `-WindowsUpdatesOverslaan` | Switch | Optionele parameter om de Windows Updates installatie over te slaan. Handig voor test doeleinden of wanneer updates later uitgevoerd moeten worden. |
 
 ## Gedetailleerde Stappen
 
