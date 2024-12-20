@@ -2,8 +2,99 @@
 param(
     [switch]$SkipWindowsUpdates,
     [string]$WifiSSID,
-    [string]$WifiPassword
+    [string]$WifiPassword,
+    [switch]$Verbose,
+    [switch]$DryRun
 )
+
+# Minimum PowerShell version check
+$minimumPSVersion = [Version]'5.1'
+if ($PSVersionTable.PSVersion -lt $minimumPSVersion) {
+    Write-Host "Fout: PowerShell versie $($PSVersionTable.PSVersion) is niet ondersteund." -ForegroundColor Red
+    Write-Host "Minimaal vereiste versie: $minimumPSVersion" -ForegroundColor Red
+    exit 1
+}
+
+# Dependency check function
+function Test-ScriptDependencies {
+    $dependencies = @{
+        'Winget' = { Get-Command winget -ErrorAction SilentlyContinue }
+        'PSWindowsUpdate' = { Get-Module -ListAvailable -Name PSWindowsUpdate }
+        'NetSh' = { Get-Command netsh -ErrorAction SilentlyContinue }
+    }
+
+    $missingDependencies = @()
+    foreach ($dep in $dependencies.Keys) {
+        if (-not (& $dependencies[$dep])) {
+            $missingDependencies += $dep
+        }
+    }
+
+    if ($missingDependencies.Count -gt 0) {
+        Write-Host "Ontbrekende afhankelijkheden: $($missingDependencies -join ', ')" -ForegroundColor Red
+        return $false
+    }
+    return $true
+}
+
+# Enhanced logging function
+function Write-EnhancedLog {
+    param(
+        [string]$Message,
+        [string]$Level = 'Info'
+    )
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logMessage = "[$timestamp] [$Level] $Message"
+
+    # Console output
+    switch ($Level) {
+        'Error' { Write-Host $logMessage -ForegroundColor Red }
+        'Warning' { Write-Host $logMessage -ForegroundColor Yellow }
+        'Success' { Write-Host $logMessage -ForegroundColor Green }
+        default { Write-Host $logMessage }
+    }
+
+    # File logging
+    Add-Content -Path $logFile -Value $logMessage
+}
+
+# Global error handler
+$ErrorActionPreference = 'Stop'
+$global:ErrorHandler = {
+    param($ErrorRecord)
+    
+    $errorMessage = $ErrorRecord.Exception.Message
+    $errorDetails = $ErrorRecord | Format-List * -Force | Out-String
+    
+    Write-EnhancedLog -Message "Onverwachte fout: $errorMessage" -Level 'Error'
+    Write-EnhancedLog -Message "Fout details: $errorDetails" -Level 'Error'
+    
+    # Optionally, you could add more advanced error handling here
+    # Such as sending an error report, cleaning up temporary files, etc.
+}
+
+# Set up global error handler
+$global:Error.Clear()
+$ErrorView = 'NormalView'
+
+# Verbose logging
+function Write-VerboseLog {
+    param([string]$Message)
+    if ($Verbose) {
+        Write-Host "[VERBOSE] $Message" -ForegroundColor Cyan
+        Add-Content -Path $logFile -Value "[$timestamp] [VERBOSE] $Message"
+    }
+}
+
+# Dry run mode
+function Invoke-DryRunCheck {
+    if ($DryRun) {
+        Write-Host "[DRY RUN] Simulatie modus - Geen wijzigingen worden doorgevoerd" -ForegroundColor Cyan
+        return $true
+    }
+    return $false
+}
 
 # Check for Administrator privileges
 function Test-Administrator {
@@ -90,22 +181,83 @@ function Show-Progress {
     }
 }
 
-# WiFi Connection Function
-function Connect-ToWiFi {
+# Faster network connectivity check
+function Test-FastNetworkConnection {
+    # List of reliable DNS servers to test
+    $dnsServers = @(
+        "8.8.8.8",     # Google DNS
+        "1.1.1.1",     # Cloudflare DNS
+        "9.9.9.9"      # Quad9 DNS
+    )
+
+    # Parallel connection test
+    $connectionTasks = $dnsServers | ForEach-Object {
+        Start-Job -ScriptBlock {
+            param($server)
+            try {
+                # Faster, lightweight ping with short timeout
+                $ping = [System.Net.NetworkInformation.Ping]::new()
+                $result = $ping.Send($server, 1000)  # 1-second timeout
+                return $result.Status -eq 'Success'
+            }
+            catch {
+                return $false
+            }
+        } -ArgumentList $_
+    }
+
+    # Wait for results with a short overall timeout
+    $waitResult = Wait-Job $connectionTasks -Timeout 2
+
+    # Check results
+    $successfulConnections = $connectionTasks | 
+        Receive-Job | 
+        Where-Object { $_ -eq $true }
+
+    # Cleanup jobs
+    $connectionTasks | Remove-Job -Force
+
+    return ($successfulConnections.Count -gt 0)
+}
+
+# Function to setup network connection
+function Connect-Network {
     param (
         [Parameter(Mandatory=$false)]
-        [string]$SSID,
+        [string]$WifiSSID,
         [Parameter(Mandatory=$false)]
-        [string]$Password
+        [string]$WifiPassword
     )
-    
+
+    Write-Host "`nNetwerk verbinding controleren..." -ForegroundColor Yellow
+    Write-LogMessage "Start netwerk verbinding controle"
+
+    # Check for LAN connection first
+    if (Test-FastNetworkConnection) {
+        Write-Host "LAN verbinding gevonden, verdergaan met script..." -ForegroundColor Green
+        Write-LogMessage "LAN verbinding actief"
+        return $true
+    }
+
+    # Test connection once
+    $hasConnection = Test-FastNetworkConnection
+    if ($hasConnection) {
+        Write-Host "Actieve netwerk verbinding gevonden, verdergaan met script..." -ForegroundColor Green
+        Write-LogMessage "Bestaande netwerk verbinding gevonden"
+        return $true
+    }
+
+    # No network connection, try WiFi
+    Write-Host "Geen actieve netwerk verbinding gevonden. WiFi verbinding wordt opgezet..." -ForegroundColor Yellow
+    Write-LogMessage "Geen netwerk verbinding gevonden, start WiFi setup"
+
     # Try to load config file if parameters are not provided
-    if (-not $SSID -or -not $Password) {
+    if (-not $WifiSSID -or -not $WifiPassword) {
         if (Test-Path $configFile) {
             try {
                 . $configFile
-                if (-not $SSID) { $SSID = $WifiConfig.SSID }
-                if (-not $Password) { $Password = $WifiConfig.Password }
+                if (-not $WifiSSID) { $WifiSSID = $WifiConfig.SSID }
+                if (-not $WifiPassword) { $WifiPassword = $WifiConfig.Password }
             }
             catch {
                 Write-Host "Fout bij laden van WiFi configuratie: $($_.Exception.Message)" -ForegroundColor Red
@@ -115,39 +267,31 @@ function Connect-ToWiFi {
         }
         
         # If still no credentials, prompt user
-        if (-not $SSID) {
+        if (-not $WifiSSID) {
             Write-Host "Voer WiFi SSID in:" -ForegroundColor Cyan
-            $SSID = Read-Host
+            $WifiSSID = Read-Host
         }
-        if (-not $Password) {
+        if (-not $WifiPassword) {
             Write-Host "Voer WiFi wachtwoord in:" -ForegroundColor Cyan
-            $Password = Read-Host -AsSecureString
-            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password))
+            $WifiPassword = Read-Host -AsSecureString
+            $WifiPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($WifiPassword))
         }
     }
 
-    Write-Host "Automatisch verbinden met $SSID..." -ForegroundColor Yellow
-    Write-LogMessage "Poging tot verbinden met WiFi netwerk: $SSID"
+    Write-Host "Automatisch verbinden met $WifiSSID..." -ForegroundColor Yellow
+    Write-LogMessage "Poging tot verbinden met WiFi netwerk: $WifiSSID"
 
     try {
-        # Controleer of het netwerk bestaat
-        $networks = (netsh wlan show networks) -join "`n"
-        if ($networks -notmatch [regex]::Escape($SSID)) {
-            throw "Netwerk $SSID niet gevonden"
-        }
-
-        Write-Host "Netwerk $SSID gevonden. Bezig met verbinden..." -ForegroundColor Yellow
-        
-        # Maak een tijdelijk profiel XML
-        $hexSSID = [System.BitConverter]::ToString([System.Text.Encoding]::UTF8.GetBytes($SSID)).Replace("-","")
+        # Create WiFi profile XML
+        $hexSSID = [System.BitConverter]::ToString([System.Text.Encoding]::UTF8.GetBytes($WifiSSID)).Replace("-","")
         $profileXml = @"
 <?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
-    <name>$SSID</name>
+    <name>$WifiSSID</name>
     <SSIDConfig>
         <SSID>
-            <name>$SSID</name>
             <hex>$hexSSID</hex>
+            <name>$WifiSSID</name>
         </SSID>
     </SSIDConfig>
     <connectionType>ESS</connectionType>
@@ -162,45 +306,52 @@ function Connect-ToWiFi {
             <sharedKey>
                 <keyType>passPhrase</keyType>
                 <protected>false</protected>
-                <keyMaterial>$Password</keyMaterial>
+                <keyMaterial>$WifiPassword</keyMaterial>
             </sharedKey>
         </security>
     </MSM>
 </WLANProfile>
 "@
-        # Voeg het profiel toe
+        # Add the profile
         $profilePath = "$env:TEMP\WiFiProfile.xml"
         $profileXml | Set-Content $profilePath -Encoding UTF8
         $addResult = netsh wlan add profile filename="$profilePath"
-        Remove-Item $profilePath -ErrorAction SilentlyContinue
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Fout bij toevoegen WiFi profiel: $addResult"
-        }
-
-        # Probeer verbinding te maken met het netwerk
-        $connectResult = netsh wlan connect name="$SSID"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Fout bij verbinden: $connectResult"
+        
+        # Connect to network
+        $connectResult = netsh wlan connect name="$WifiSSID"
+        
+        # Wait for connection
+        $timeout = 30
+        $connected = $false
+        $startTime = Get-Date
+        
+        while (-not $connected -and ((Get-Date) - $startTime).TotalSeconds -lt $timeout) {
+            Start-Sleep -Seconds 2
+            $testConnection = Test-FastNetworkConnection
+            if ($testConnection) {
+                $connected = $true
+                break
+            }
         }
         
-        # Wacht even om de verbindingsstatus te controleren
-        Write-Host "Wachten op verbinding..." -ForegroundColor Yellow
-        Start-Sleep -Seconds 5
-        
-        # Controleer of we verbonden zijn
-        $interfaces = (netsh wlan show interfaces) -join "`n"
-        if ($interfaces -notmatch [regex]::Escape($SSID)) {
-            throw "Kan niet verbinden met $SSID"
+        # Cleanup
+        if (Test-Path $profilePath) {
+            Remove-Item $profilePath -Force
         }
-
-        Write-Host "Succesvol verbonden met $SSID" -ForegroundColor Green
-        Write-LogMessage "Succesvol verbonden met WiFi netwerk: $SSID"
-        return $true
+        
+        if ($connected) {
+            Write-Host "Succesvol verbonden met $WifiSSID" -ForegroundColor Green
+            Write-LogMessage "Succesvol verbonden met WiFi netwerk: $WifiSSID"
+            return $true
+        } else {
+            Write-Host "Kon niet verbinden met $WifiSSID binnen $timeout seconden" -ForegroundColor Yellow
+            Write-LogMessage "Timeout bij verbinden met WiFi netwerk: $WifiSSID"
+            return $false
+        }
     }
     catch {
-        Write-Host "WiFi Fout: $($_.Exception.Message)" -ForegroundColor Red
-        Write-LogMessage "WiFi Fout: $($_.Exception.Message)"
+        Write-Host "Fout bij WiFi verbinding: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Fout bij WiFi verbinding: $($_.Exception.Message)"
         return $false
     }
 }
@@ -893,7 +1044,7 @@ function Install-Winget {
         Write-LogMessage "Downloaden Winget installer"
         $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
         $installerPath = Join-Path $env:TEMP "Microsoft.DesktopAppInstaller.msixbundle"
-
+        
         $webClient = New-Object System.Net.WebClient
         $webClient.DownloadFile($wingetUrl, $installerPath)
 
@@ -1203,12 +1354,12 @@ try {
     Write-Host "`nStap 2: Energie-instellingen optimaliseren..." -ForegroundColor Yellow
     Set-OptimalPowerSettings
 
-    # Stap 3: WiFi verbinding
-    Write-Host "`nStap 3: WiFi verbinding maken..." -ForegroundColor Yellow
-    $wifiParams = @{}
-    if ($WifiSSID) { $wifiParams['SSID'] = $WifiSSID }
-    if ($WifiPassword) { $wifiParams['Password'] = $WifiPassword }
-    Connect-ToWiFi @wifiParams
+    # Stap 3: Netwerk verbinding
+    Write-Host "`nStap 3: Netwerk verbinding..." -ForegroundColor Yellow
+    $networkParams = @{}
+    if ($WifiSSID) { $networkParams['WifiSSID'] = $WifiSSID }
+    if ($WifiPassword) { $networkParams['WifiPassword'] = $WifiPassword }
+    Connect-Network @networkParams
     
     # Stap 3b: Klantnummer invoeren
     Write-Host "`nStap 3b: Klantnummer invoeren..." -ForegroundColor Yellow

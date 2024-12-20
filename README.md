@@ -27,6 +27,88 @@ powershell.exe -ExecutionPolicy Bypass -File newpc_fixed.ps1
 powershell.exe -ExecutionPolicy Bypass -File newpc_fixed.ps1 -SkipWindowsUpdates
 ```
 
+## Script Usage and Parameters
+
+### Command-Line Options
+
+The script supports several command-line parameters to customize its behavior:
+
+```powershell
+.\newpc_fixed.ps1 [Options]
+```
+
+#### Available Options:
+- `-WifiSSID`: Specify WiFi network name
+- `-WifiPassword`: Provide WiFi password
+- `-SkipWindowsUpdates`: Skip Windows Update process
+- `-Verbose`: Enable detailed logging and verbose output
+- `-DryRun`: Run script in simulation mode (no changes made)
+
+### Example Usages
+
+```powershell
+# Standard execution
+.\newpc_fixed.ps1
+
+# Provide WiFi credentials
+.\newpc_fixed.ps1 -WifiSSID "MyNetwork" -WifiPassword "SecurePass"
+
+# Skip Windows Updates
+.\newpc_fixed.ps1 -SkipWindowsUpdates
+
+# Verbose logging for debugging
+.\newpc_fixed.ps1 -Verbose
+
+# Dry run (simulation mode)
+.\newpc_fixed.ps1 -DryRun
+```
+
+### Network Connectivity
+
+#### Improved Connection Detection
+- Uses parallel testing of multiple DNS servers
+- Supports LAN and WiFi connections
+- Faster and more reliable network detection
+- Checks Google, Cloudflare, and Quad9 DNS servers
+
+#### Connection Priorities
+1. Check for active LAN connection
+2. Test internet connectivity via multiple DNS servers
+3. Attempt WiFi connection if no network found
+4. Prompt for WiFi credentials if needed
+
+### Logging and Debugging
+
+#### Log Levels
+- Standard output
+- Verbose mode for detailed logging
+- Color-coded console messages
+- Persistent log file for tracking script execution
+
+#### Error Handling
+- Comprehensive error logging
+- Detailed error messages
+- Prevents script execution with missing dependencies
+
+### System Requirements
+
+#### Minimum Requirements
+- PowerShell 5.1 or later
+- Windows 10 or Windows 11
+- Administrator privileges
+
+#### Required Tools
+- Winget
+- NetSh
+- Optional: PSWindowsUpdate module
+
+### Troubleshooting
+
+- Use `-Verbose` flag for detailed diagnostics
+- Check log files for specific error information
+- Ensure all dependencies are installed
+- Run script with administrator privileges
+
 ## Parameters
 
 | Parameter | Type | Beschrijving |
@@ -45,9 +127,12 @@ Het script voert de volgende stappen automatisch uit:
    - Configureert optimale energie-instellingen voor prestaties
    - Past slaapstand en schermtimeouts aan
 
-3. **WiFi Verbinding**
-   - Maakt automatisch verbinding met het geconfigureerde WiFi netwerk
-   - Gaat door met script bij verbindingsproblemen
+3. **Netwerk Verbinding**
+   - Controleert eerst op actieve LAN verbinding
+   - Als LAN beschikbaar is, wordt deze gebruikt
+   - Alleen als er geen LAN verbinding is:
+     - Maakt automatisch verbinding met WiFi netwerk
+     - Gaat door met script bij verbindingsproblemen
 
 3b. **Klantnummer Invoer**
     - Vraagt om klantnummer
