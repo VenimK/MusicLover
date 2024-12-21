@@ -174,3 +174,6 @@ Met parameters:
 - Poort 3000 configuratie
 - Firewall regels worden automatisch aangemaakt
 - Server start automatisch na installatie
+
+
+ 2024 TechStick. Alle rechten voorbehouden. Contact: @ techmusiclover@outlook.be
