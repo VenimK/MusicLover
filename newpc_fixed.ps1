@@ -132,7 +132,11 @@ if (-not (Test-Administrator)) {
 # Script configuratie
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$logFile = Join-Path $env:TEMP "newpc_setup.log"
+$logFile = if ($global:ClientNumber) {
+    Join-Path $env:TEMP "newpc_setup_$($global:ClientNumber)_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+} else {
+    Join-Path $env:TEMP "newpc_setup_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+}
 $configFile = Join-Path $PSScriptRoot "config.ps1"
 
 # Function to log messages
@@ -143,6 +147,11 @@ function Write-LogMessage {
     try {
         $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
         $logMessage = "[$timestamp] $Message"
+
+        # Console output
+        Write-Host $logMessage
+
+        # File logging
         Add-Content -Path $logFile -Value $logMessage
     }
     catch {
@@ -883,9 +892,6 @@ function Start-NodeServer {
     }
 }
 
-# Stap 8: Adobe Reader installeren wordt overgeslagen
-Write-Host "`nStap 8: Adobe Reader installatie overgeslagen..." -ForegroundColor Yellow
-Write-LogMessage "Adobe Reader installatie overgeslagen"
 
 # Function to optimize power settings
 function Set-OptimalPowerSettings {
