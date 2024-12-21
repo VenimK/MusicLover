@@ -207,7 +207,8 @@ function Test-FastNetworkConnection {
     }
 
     # Wait for results with a short overall timeout
-    $waitResult = Wait-Job $connectionTasks -Timeout 2
+    $timeout = 2 # 2 minutes timeout
+    $waitResult = Wait-Job -Job $connectionTasks -Timeout $timeout
 
     # Check results
     $successfulConnections = $connectionTasks | 
@@ -417,6 +418,7 @@ function Install-WingetSoftware {
                     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
                     "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
                 )
+                WingetArgs = @("--locale", "nl-NL")
             },
             @{
                 Id = "7zip.7zip"
@@ -437,6 +439,7 @@ function Install-WingetSoftware {
                     "$env:ProgramFiles\VideoLAN\VLC\vlc.exe",
                     "${env:ProgramFiles(x86)}\VideoLAN\VLC\vlc.exe"
                 )
+                WingetArgs = @("--locale", "nl-NL")
             },
             @{
                 Id = "BelgianGovernment.Belgium-eIDmiddleware"
@@ -450,6 +453,20 @@ function Install-WingetSoftware {
                 RegPaths = @(
                     "HKLM:\SOFTWARE\Belgian eID Viewer",
                     "HKLM:\SOFTWARE\Wow6432Node\Belgian eID Viewer"
+                )
+            },
+            @{
+                Id = "Notepad++.Notepad++"
+                RegPaths = @(
+                    "HKLM:\SOFTWARE\Notepad++",
+                    "HKLM:\SOFTWARE\Wow6432Node\Notepad++"
+                )
+            },
+            @{
+                Id = "Adobe.Acrobat.Reader.64-bit"
+                RegPaths = @(
+                    "HKLM:\SOFTWARE\Adobe\Acrobat Reader",
+                    "HKLM:\SOFTWARE\Wow6432Node\Adobe\Acrobat Reader"
                 )
             }
         )
@@ -499,7 +516,11 @@ function Install-WingetSoftware {
                     Write-Host "$($software.Id) update beschikbaar. Bijwerken..." -ForegroundColor Yellow
                     Write-LogMessage "$($software.Id) update beschikbaar, start upgrade"
                     
-                    winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                    if ($software.WingetArgs) {
+                        winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
+                    } else {
+                        winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                    }
                     if ($LASTEXITCODE -eq 0) {
                         Write-Host "$($software.Id) is bijgewerkt naar de laatste versie" -ForegroundColor Green
                         Write-LogMessage "$($software.Id) upgrade succesvol"
@@ -511,7 +532,11 @@ function Install-WingetSoftware {
             } else {
                 # Install if not present
                 Write-Host "$($software.Id) wordt geinstalleerd..." -ForegroundColor Yellow
-                winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                if ($software.WingetArgs) {
+                    winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
+                } else {
+                    winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                }
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
                     Write-LogMessage "$($software.Id) installatie succesvol"
@@ -836,50 +861,9 @@ function Start-NodeServer {
     }
 }
 
-# Function to install Adobe Reader
-function Install-AdobeReader {
-    try {
-        Write-Host "`nAdobe Reader installatie controleren..." -ForegroundColor Yellow
-        Write-LogMessage "Start Adobe Reader installatie check"
-
-        # Check if Adobe Reader is already installed using Winget
-        $installedReader = winget list --id Adobe.AcrobatReader.64-bit --accept-source-agreements
-
-        if ($installedReader) {
-            Write-Host "Adobe Reader is al geinstalleerd. Installatie wordt overgeslagen." -ForegroundColor Green
-            Write-LogMessage "Adobe Reader is al geinstalleerd"
-            Show-Progress -Activity "Adobe Reader" -Status "Reeds geinstalleerd" -PercentComplete 100
-            return $true
-        }
-
-        Show-Progress -Activity "Adobe Reader" -Status "Voorbereiden..." -PercentComplete 10
-
-        # Install Adobe Reader using Winget with Dutch locale
-        Write-Host "Adobe Reader installeren..." -ForegroundColor Cyan
-        Write-LogMessage "Adobe Reader installeren via Winget"
-        
-        Show-Progress -Activity "Adobe Reader" -Status "Installeren..." -PercentComplete 50
-        
-        $installResult = Start-Process winget -ArgumentList "install", "-e", "--id", "Adobe.AcrobatReader.64-bit", "--locale", "nl-NL", "--silent" -Wait -PassThru
-
-        if ($installResult.ExitCode -eq 0) {
-            Write-Host "Adobe Reader succesvol geïnstalleerd." -ForegroundColor Green
-            Write-LogMessage "Adobe Reader installatie succesvol"
-            Show-Progress -Activity "Adobe Reader" -Status "Geïnstalleerd" -PercentComplete 100
-            return $true
-        }
-        else {
-            throw "Adobe Reader installatie mislukt met exit code $($installResult.ExitCode)"
-        }
-    }
-    catch {
-        $errorMsg = $_.Exception.Message
-        Write-Host "`nAdobe Reader installatie mislukt: $errorMsg" -ForegroundColor Red
-        Write-LogMessage "Adobe Reader installatie mislukt: $errorMsg"
-        Show-Progress -Activity "Adobe Reader" -Status "Installatie mislukt" -PercentComplete 100
-        return $false
-    }
-}
+# Stap 8: Adobe Reader installeren wordt overgeslagen
+Write-Host "`nStap 8: Adobe Reader installatie overgeslagen..." -ForegroundColor Yellow
+Write-LogMessage "Adobe Reader installatie overgeslagen"
 
 # Function to optimize power settings
 function Set-OptimalPowerSettings {
@@ -1247,7 +1231,7 @@ function Install-MicrosoftOffice {
         Write-LogMessage "Office installatie gestart met configuratie: $ConfigFile"
 
         # Execute ODT with configuration
-        $process = Start-Process -FilePath $setupPath -ArgumentList "/configure", $configPath -Wait -PassThru -NoNewWindow
+        $process = Start-Process $setupPath -ArgumentList "/configure", $configPath -Wait -PassThru
         
         if ($process.ExitCode -eq 0) {
             Show-Progress -Activity "Microsoft Office" -Status "Installatie voltooid" -PercentComplete 100
@@ -1366,9 +1350,68 @@ try {
     Write-Host "`nStap 7: Winget software installeren..." -ForegroundColor Yellow
     Install-WingetSoftware
 
-    # Stap 8: Adobe Reader installatie
-    Write-Host "`nStap 8: Adobe Reader installeren..." -ForegroundColor Yellow
-    Install-AdobeReader
+    # Stap 8: Adobe Reader installeren
+    Write-Host "`nStap 8: Adobe Reader installatie..." -ForegroundColor Yellow
+    $softwareList = @(
+        @{
+            Id = "Adobe.Acrobat.Reader.64-bit"
+            RegPaths = @(
+                "HKLM:\SOFTWARE\Adobe\Acrobat Reader",
+                "HKLM:\SOFTWARE\Wow6432Node\Adobe\Acrobat Reader"
+            )
+        }
+    )
+    foreach ($software in $softwareList) {
+        Write-Host "`nControleren $($software.Id)..." -ForegroundColor Cyan
+        Write-LogMessage "Start controle van $($software.Id)"
+        
+        # Check if already installed through registry or file paths
+        $isInstalled = $false
+        
+        # Check registry paths
+        foreach ($regPath in $software.RegPaths) {
+            if (Test-Path $regPath) {
+                $isInstalled = $true
+                break
+            }
+        }
+        
+        # Check exe paths if defined
+        if (-not $isInstalled -and $software.ExePaths) {
+            foreach ($exePath in $software.ExePaths) {
+                if (Test-Path $exePath) {
+                    $isInstalled = $true
+                    break
+                }
+            }
+        }
+        
+        # Double check with winget if not found in registry/files
+        if (-not $isInstalled) {
+            $wingetCheck = winget list --id $software.Id --exact
+            $isInstalled = $LASTEXITCODE -eq 0
+        }
+        
+        if ($isInstalled) {
+            Write-Host "$($software.Id) is al geinstalleerd en up-to-date" -ForegroundColor Green
+            Write-LogMessage "$($software.Id) is up-to-date"
+        } else {
+            # Install if not present
+            Write-Host "$($software.Id) wordt geinstalleerd..." -ForegroundColor Yellow
+            if ($software.WingetArgs) {
+                winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
+            } else {
+                winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+            }
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
+                Write-LogMessage "$($software.Id) installatie succesvol"
+            } else {
+                Write-Host "Waarschuwing: $($software.Id) installatie mislukt" -ForegroundColor Yellow
+                Write-LogMessage "$($software.Id) installatie mislukt"
+            }
+        }
+    }
 
     # Stap 9: Windows updates installeren
     if ($SkipWindowsUpdates) {
