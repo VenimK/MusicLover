@@ -159,6 +159,87 @@ function Write-LogMessage {
     }
 }
 
+# Function to send SMS notifications using Textbee API
+function Send-TextbeeSMS {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$Message,
+        [string]$PhoneNumber = $null
+    )
+    
+    try {
+        Write-Host "SMS notificatie versturen..." -ForegroundColor Yellow
+        Write-LogMessage "Start SMS notificatie verzending"
+        
+        # Load SMS configuration
+        $smsConfigPath = Join-Path $PSScriptRoot "sms_config.ps1"
+        if (Test-Path $smsConfigPath) {
+            . $smsConfigPath
+        } else {
+            # Fallback to environment variables
+            $TEXTBEE_DEVICE_ID = $env:TEXTBEE_DEVICE_ID
+            $TEXTBEE_API_KEY = $env:TEXTBEE_API_KEY
+            $TEXTBEE_NOTIFICATION_PHONE = $env:TEXTBEE_NOTIFICATION_PHONE
+        }
+
+        # Validate configuration
+        if (-not $TEXTBEE_DEVICE_ID -or -not $TEXTBEE_API_KEY) {
+            throw "Textbee configuratie ontbreekt. Controleer sms_config.ps1 of omgevingsvariabelen."
+        }
+
+        # Use provided phone number or fallback to config
+        if (-not $PhoneNumber) {
+            $PhoneNumber = $TEXTBEE_NOTIFICATION_PHONE
+            if (-not $PhoneNumber) {
+                throw "Geen telefoonnummer opgegeven en geen standaard nummer geconfigureerd."
+            }
+        }
+
+        # Check network connectivity
+        if (-not (Test-FastNetworkConnection)) {
+            throw "Geen netwerkverbinding beschikbaar."
+        }
+
+        # Prepare API request
+        $apiUrl = "https://api.textbee.dev/api/v1/gateway/devices/$TEXTBEE_DEVICE_ID/send-sms"
+        $headers = @{
+            'x-api-key' = $TEXTBEE_API_KEY
+            'Content-Type' = 'application/json'
+        }
+        
+        $body = @{
+            recipients = @($PhoneNumber)
+            message = $Message
+        } | ConvertTo-Json
+
+        # Send request
+        $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -ContentType 'application/json'
+        
+        Write-Host "SMS notificatie succesvol verzonden" -ForegroundColor Green
+        Write-LogMessage "SMS notificatie succesvol verzonden naar $PhoneNumber"
+        return $true
+    }
+    catch {
+        $errorMsg = $_.Exception.Message
+        Write-Host "Fout bij versturen SMS: $errorMsg" -ForegroundColor Red
+        Write-LogMessage "Fout bij versturen SMS: $errorMsg"
+        
+        # Log additional error details if available
+        if ($_.Exception.Response) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
+            $statusDesc = $_.Exception.Response.StatusDescription
+            Write-LogMessage "HTTP Status: $statusCode - $statusDesc"
+            
+            try {
+                $errorDetails = $_.ErrorDetails.Message | ConvertFrom-Json
+                Write-LogMessage "API Error: $($errorDetails.message)"
+            } catch {}
+        }
+        
+        return $false
+    }
+}
+
 # Check if running in proper console host
 $hasConsoleHost = $Host.Name -eq "ConsoleHost"
 if (-not $hasConsoleHost) {
@@ -996,20 +1077,19 @@ function Install-Winget {
         Write-Host "`nNieuwste Winget installer downloaden..." -ForegroundColor Cyan
         Write-LogMessage "Downloaden Winget installer"
         $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-        $installerPath = Join-Path $env:TEMP "Microsoft.DesktopAppInstaller.msixbundle"
         
         $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($wingetUrl, $installerPath)
+        $webClient.DownloadFile($wingetUrl, "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle")
 
         Show-Progress -Activity "Winget Installatie" -Status "Installeren..." -PercentComplete 60
         Write-Host "`nWinget installeren..." -ForegroundColor Cyan
         Write-LogMessage "Installeren Winget"
-        Add-AppxPackage $installerPath
+        Add-AppxPackage "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
 
         # Ruim het installatiebestand op
         Show-Progress -Activity "Winget Installatie" -Status "Opruimen..." -PercentComplete 80
-        if (Test-Path $installerPath) {
-            Remove-Item $installerPath
+        if (Test-Path "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle") {
+            Remove-Item "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
         }
 
         # Ververs omgevingsvariabelen
@@ -1293,129 +1373,6 @@ function Get-ClientNumber {
     return $null
 }
 
-# Function to send SMS via Textbee API
-function Send-TextbeeSMS {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Message,
-        
-        [Parameter(Mandatory=$false)]
-        [string]$PhoneNumber
-    )
-    
-    # Get SMS configuration
-    $smsConfig = Get-SMSConfiguration
-    
-    # Use provided phone number or fallback to config
-    $targetPhoneNumber = if ($PhoneNumber) { $PhoneNumber } else { $smsConfig.NotificationPhoneNumber }
-    
-    try {
-        # Validate required parameters
-        if (-not $smsConfig.DeviceId -or -not $smsConfig.ApiKey -or -not $targetPhoneNumber) {
-            Write-LogMessage "SMS configuration incomplete. Skipping SMS."
-            return $false
-        }
-        
-        # Prepare the API request
-        $headers = @{
-            "Content-Type" = "application/json"
-            "Authorization" = "Bearer $($smsConfig.ApiKey)"
-        }
-        
-        $body = @{
-            device_id = $smsConfig.DeviceId
-            phone_number = $targetPhoneNumber
-            message = $Message
-        } | ConvertTo-Json
-        
-        # Send SMS via Textbee API
-        $response = Invoke-RestMethod -Uri "https://api.textbee.io/send" -Method Post -Headers $headers -Body $body
-        
-        # Log successful SMS send
-        Write-LogMessage "SMS sent successfully to $targetPhoneNumber"
-        return $true
-    }
-    catch {
-        # Log any errors
-        Write-LogMessage "Failed to send SMS: $($_.Exception.Message)"
-        return $false
-    }
-}
-
-# Example usage in script
-function Send-ScriptStatusSMS {
-    param(
-        [bool]$Success,
-        [string]$PhoneNumber
-    )
-    
-    $statusMessage = if ($Success) {
-        "PC Setup Script completed successfully for client $global:ClientNumber"
-    } else {
-        "PC Setup Script FAILED for client $global:ClientNumber. Check logs for details."
-    }
-    
-    # Send SMS with script status
-    Send-TextbeeSMS -Message $statusMessage -PhoneNumber $PhoneNumber
-}
-
-# Load SMS configuration function
-function Get-SMSConfiguration {
-    $configPath = Join-Path $PSScriptRoot "sms_config.ps1"
-    
-    # Check if config file exists
-    if (Test-Path $configPath) {
-        try {
-            $config = . $configPath
-            return $config
-        }
-        catch {
-            Write-LogMessage "Error loading SMS configuration: $($_.Exception.Message)"
-            return $null
-        }
-    }
-    
-    # Fallback to environment variables
-    return @{
-        DeviceId = $env:TEXTBEE_DEVICE_ID
-        ApiKey = $env:TEXTBEE_API_KEY
-        NotificationPhoneNumber = $env:TEXTBEE_NOTIFICATION_PHONE
-    }
-}
-
-# Main script execution
-try {
-    Write-Host "=== Windows PC Setup Script ===" -ForegroundColor Cyan
-    Write-LogMessage "Script gestart"
-
-    # Get SMS configuration
-    $smsConfig = Get-SMSConfiguration
-
-    # Stap 1: Execution Policy
-    Write-Host "`nStap 1: Execution Policy instellen..." -ForegroundColor Yellow
-    Set-ExecutionPolicy Bypass -Scope Process -Force
-    Write-LogMessage "Execution Policy ingesteld op Bypass"
-
-    # Rest of the script continues...
-
-    # At the end of successful script execution
-    if ($smsConfig -and $smsConfig.NotificationPhoneNumber) {
-        Send-ScriptStatusSMS -Success $true
-    }
-}
-catch {
-    Write-Host "`nFout opgetreden: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "Controleer het logbestand voor meer details: $logFile" -ForegroundColor Yellow
-    Write-LogMessage "Script gefaald: $($_.Exception.Message)"
-    
-    # Send SMS on script failure if configuration exists
-    $smsConfig = Get-SMSConfiguration
-    if ($smsConfig -and $smsConfig.NotificationPhoneNumber) {
-        Send-ScriptStatusSMS -Success $false
-    }
-    
-    exit 1
-}
 
 Add-Type @"
     using System;
@@ -1432,3 +1389,218 @@ Add-Type @"
         public static extern IntPtr GetConsoleWindow();
     }
 "@ 
+
+# Main script execution
+try {
+    Write-Host "=== Windows PC Setup Script ===" -ForegroundColor Cyan
+    Write-LogMessage "Script gestart"
+
+    # Stap 1: Execution Policy
+    Write-Host "`nStap 1: Execution Policy instellen..." -ForegroundColor Yellow
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
+    Write-LogMessage "Execution Policy ingesteld op Bypass"
+
+    # Stap 2: Energie-instellingen optimaliseren
+    Write-Host "`nStap 2: Energie-instellingen optimaliseren..." -ForegroundColor Yellow
+    Set-OptimalPowerSettings
+
+    # Stap 3: Netwerk verbinding
+    Write-Host "`nStap 3: Netwerk verbinding..." -ForegroundColor Yellow
+    $networkParams = @{}
+    if ($WifiSSID) { $networkParams['WifiSSID'] = $WifiSSID }
+    if ($WifiPassword) { $networkParams['WifiPassword'] = $WifiPassword }
+    Connect-Network @networkParams
+    
+    # Stap 3b: Klantnummer invoeren
+    Write-Host "`nStap 3b: Klantnummer invoeren..." -ForegroundColor Yellow
+    $global:ClientNumber = Get-ClientNumber
+    
+    # Stap 4: Microsoft Office installatie
+    Write-Host "`nStap 4: Microsoft Office installatie" -ForegroundColor Yellow
+    Write-Host "Kies een Office versie om te installeren:" -ForegroundColor Cyan
+    Write-Host "1. Microsoft 365 Business"
+    Write-Host "2. Office 2021"
+    Write-Host "3. Office 2024"
+    Write-Host "4. Geen Office installatie"
+    Write-Host "(Automatisch overslaan na 30 seconden)" -ForegroundColor Gray
+    
+    $timeoutSeconds = 30
+    $choice = $null
+    $startTime = Get-Date
+    
+    while (-not $choice -and ((Get-Date) - $startTime).TotalSeconds -lt $timeoutSeconds) {
+        if ([Console]::KeyAvailable) {
+            $key = [Console]::ReadKey($true)
+            if ($key.KeyChar -match '[1-4]') {
+                $choice = $key.KeyChar
+                Write-Host "Keuze: $choice"
+            }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    
+    switch ($choice) {
+        "1" { 
+            Install-MicrosoftOffice -ConfigFile "365business.xml"
+        }
+        "2" { 
+            Install-MicrosoftOffice -ConfigFile "Office2021.xml"
+        }
+        "3" { 
+            Install-MicrosoftOffice -ConfigFile "office2024.xml"
+        }
+        default {
+            if ($choice) {
+                Write-Host "Office installatie overgeslagen." -ForegroundColor Yellow
+                Write-LogMessage "Office installatie overgeslagen door gebruiker"
+            } else {
+                Write-Host "Geen keuze gemaakt binnen 30 seconden. Office installatie overgeslagen." -ForegroundColor Yellow
+                Write-LogMessage "Office installatie overgeslagen: timeout"
+            }
+        }
+    }
+
+    # Stap 5: Extra Software Pack
+    Write-Host "`nStap 5: Extra Software Pack controleren..." -ForegroundColor Yellow
+    Install-ExtraSoftwarePack
+
+    # Stap 6: Winget installatie
+    Write-Host "`nStap 6: Winget installeren..." -ForegroundColor Yellow
+    if (-not (Install-Winget)) {
+        Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
+        Write-LogMessage "Winget installatie mislukt, script gaat door"
+    }
+
+    # Stap 7: Winget software installatie
+    Write-Host "`nStap 7: Winget software installeren..." -ForegroundColor Yellow
+    Install-WingetSoftware
+
+    # Stap 8: Adobe Reader installeren
+    Write-Host "`nStap 8: Adobe Reader installatie..." -ForegroundColor Yellow
+    $softwareList = @(
+        @{
+            Id = "Adobe.Acrobat.Reader.64-bit"
+            RegPaths = @(
+                "HKLM:\SOFTWARE\Adobe\Acrobat Reader",
+                "HKLM:\SOFTWARE\Wow6432Node\Adobe\Acrobat Reader"
+            )
+        }
+    )
+    foreach ($software in $softwareList) {
+        Write-Host "`nControleren $($software.Id)..." -ForegroundColor Cyan
+        Write-LogMessage "Start controle van $($software.Id)"
+        
+        # Check if already installed through registry or file paths
+        $isInstalled = $false
+        
+        # Check registry paths
+        foreach ($regPath in $software.RegPaths) {
+            if (Test-Path $regPath) {
+                $isInstalled = $true
+                break
+            }
+        }
+        
+        # Check exe paths if defined
+        if (-not $isInstalled -and $software.ExePaths) {
+            foreach ($exePath in $software.ExePaths) {
+                if (Test-Path $exePath) {
+                    $isInstalled = $true
+                    break
+                }
+            }
+        }
+        
+        # Double check with winget if not found in registry/files
+        if (-not $isInstalled) {
+            $wingetCheck = winget list --id $software.Id --exact
+            $isInstalled = $LASTEXITCODE -eq 0
+        }
+        
+        if ($isInstalled) {
+            Write-Host "$($software.Id) is al geinstalleerd en up-to-date" -ForegroundColor Green
+            Write-LogMessage "$($software.Id) is up-to-date"
+        } else {
+            # Install if not present
+            Write-Host "$($software.Id) wordt geinstalleerd..." -ForegroundColor Yellow
+            if ($software.WingetArgs) {
+                winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
+            } else {
+                winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+            }
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
+                Write-LogMessage "$($software.Id) installatie succesvol"
+            } else {
+                Write-Host "Waarschuwing: $($software.Id) installatie mislukt" -ForegroundColor Yellow
+                Write-LogMessage "$($software.Id) installatie mislukt"
+            }
+        }
+    }
+
+    # Stap 9: Windows updates installeren
+    if ($SkipWindowsUpdates) {
+        Write-Host "`nStap 9: Windows updates overgeslagen (SkipWindowsUpdates parameter gebruikt)..." -ForegroundColor Yellow
+        Write-LogMessage "Windows updates overgeslagen door SkipWindowsUpdates parameter"
+    } else {
+        Write-Host "`nStap 9: Windows updates installeren..." -ForegroundColor Yellow
+        if (-not (Install-WindowsUpdates)) {
+            Write-Host "Windows updates gefaald, maar script gaat door..." -ForegroundColor Yellow
+            Write-LogMessage "Windows updates gefaald, script gaat door"
+        }
+    }
+
+    # Stap 10: Node.js installatie
+    Write-Host "`nStap 10: Node.js installatie controleren..." -ForegroundColor Yellow
+    if (-not (Test-NodeJS)) {
+        Write-Host "Node.js niet gevonden. Installatie starten..." -ForegroundColor Yellow
+        if (-not (Install-NodeJS)) {
+            throw "Node.js installatie mislukt"
+        }
+        
+        # Controleer opnieuw na installatie
+        if (-not (Test-NodeJS)) {
+            throw "Node.js installatie verificatie mislukt"
+        }
+    }
+
+    # Stap 11: NPM packages installeren
+    Write-Host "`nStap 11: NPM packages installeren..." -ForegroundColor Yellow
+    if (-not (Install-NpmPackages)) {
+        throw "NPM packages installatie mislukt"
+    }
+
+    # Stap 12: Server starten
+    Write-Host "`nStap 12: Node.js server starten..." -ForegroundColor Yellow
+    if (-not (Start-NodeServer)) {
+        throw "Server starten mislukt"
+    }
+
+    # Stap 13: Index openen
+    Write-Host "`nStap 13: Index openen..." -ForegroundColor Yellow
+    Open-IndexFile
+
+    # Stap 14: Energie-instellingen terugzetten
+    Write-Host "`nStap 14: Energie-instellingen terugzetten..." -ForegroundColor Yellow
+    Restore-DefaultPowerSettings
+
+    Write-Host "`nSetup succesvol afgerond!" -ForegroundColor Green
+    Write-LogMessage "Script succesvol afgerond"
+
+    # Success notification
+    Write-Host "`nScript succesvol uitgevoerd!" -ForegroundColor Green
+    Write-LogMessage "Script succesvol afgerond"
+    
+    # Send success SMS if configured
+    Send-TextbeeSMS -Message "PC Setup Script voltooid voor client $global:ClientNumber"
+}
+catch {
+    Write-Host "`nFout opgetreden: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Controleer het logbestand voor meer details: $logFile" -ForegroundColor Yellow
+    Write-LogMessage "Script gefaald: $($_.Exception.Message)"
+    
+    # Send failure SMS if configured
+    Send-TextbeeSMS -Message "PC Setup Script MISLUKT voor client $global:ClientNumber. Controleer logs."
+    
+    exit 1
+}
