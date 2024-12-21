@@ -1,14 +1,14 @@
-# WiFi Configuration Template
-# Rename this file to 'config.ps1' and update the values with your actual credentials
-# DO NOT commit the actual config.ps1 file to version control!
+# WiFi Configuratie Sjabloon
+# Hernoem dit bestand naar 'config.ps1' en werk de waarden bij met uw eigen gegevens
+# NIET het echte config.ps1 bestand committen naar versiebeheer!
 
 $Global:WifiConfig = @{
-    SSID = "YourWiFiNetworkName"        # Change this to your WiFi SSID
-    Password = "YourWiFiPassword"        # Change this to your WiFi password
+    SSID = "JouwWiFiNetwerknaam"        # Vervang dit door je WiFi netwerknaam
+    Password = "JouwWiFiWachtwoord"      # Vervang dit door je WiFi wachtwoord
 }
 
-# Example:
+# Voorbeeld:
 # $Global:WifiConfig = @{
-#     SSID = "Office_Network"
-#     Password = "SecurePass123"
+#     SSID = "Kantoor_Netwerk"
+#     Password = "VeiligWachtwoord123"
 # }
