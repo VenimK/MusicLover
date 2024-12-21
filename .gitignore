@@ -5,3 +5,5 @@ node_modules/
 # Configuration files with sensitive data
 config.ps1
 config.js
+# SMS Configuration
+sms_config.ps1
