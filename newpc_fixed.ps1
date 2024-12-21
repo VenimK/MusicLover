@@ -7,6 +7,28 @@ param(
     [switch]$DryRun
 )
 
+# Function to check if running as administrator
+function Test-Administrator {
+    $currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    return $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# Check if running as administrator
+if (-not (Test-Administrator)) {
+    Write-Host "Dit script vereist Administrator rechten." -ForegroundColor Red
+    Write-Host "Start PowerShell als Administrator en probeer opnieuw." -ForegroundColor Red
+    
+    # Attempt to restart the script with elevated privileges
+    try {
+        Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        exit
+    }
+    catch {
+        Write-Host "Kon script niet opnieuw starten met Administrator rechten." -ForegroundColor Red
+        exit 1
+    }
+}
+
 # Minimum PowerShell version check
 $minimumPSVersion = [Version]'5.1'
 if ($PSVersionTable.PSVersion -lt $minimumPSVersion) {

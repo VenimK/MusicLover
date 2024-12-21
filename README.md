@@ -295,3 +295,51 @@ Alle acties, waarschuwingen en fouten worden hier geregistreerd voor troubleshoo
 ## Licentie
 
 2024 TechStick. Alle rechten voorbehouden. Contact: @ techmusiclover@outlook.be
+
+## Python Script Usage Instructions
+
+### Prerequisites
+
+- Python 3.8+
+- Windows 10/11
+- Administrator privileges
+
+### Installation
+
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+### Usage
+
+Run the script with various options:
+
+```bash
+python newpc_setup.py [options]
+```
+
+### Options
+
+- `--skip-updates`: Skip Windows updates
+- `--wifi-ssid SSID`: Specify WiFi network name
+- `--wifi-password PASSWORD`: Specify WiFi network password
+- `--verbose`: Enable detailed logging
+- `--dry-run`: Perform a dry run without making changes
+
+### Examples
+
+```bash
+# Basic usage
+python newpc_setup.py
+
+# Connect to WiFi and skip updates
+python newpc_setup.py --wifi-ssid MyNetwork --wifi-password MyPassword --skip-updates
+
+# Verbose mode
+python newpc_setup.py --verbose
+```
+
+### Logging
+
+Logs are saved to `setup_log.txt` in the script directory.
