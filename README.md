@@ -111,11 +111,36 @@ $TEXTBEE_NOTIFICATION_PHONE = "your_phone_number"
 ```
 
 ### Script Parameters
+
+#### Basis Parameters
 - `-SkipWindowsUpdates`: Slaat Windows Updates over
 - `-WifiSSID`: WiFi netwerk naam
 - `-WifiPassword`: WiFi wachtwoord
 - `-Verbose`: Toont extra debug informatie
 - `-DryRun`: Simuleert uitvoering zonder wijzigingen
+
+#### Nieuwe Uitvoeringsparameters
+- `-RunNodeJSInstallation`: Forceert Node.js installatie
+- `-RunNpmPackages`: Forceert NPM packages installatie
+- `-RunNodeServer`: Forceert Node.js server start
+- `-RunIndexOpen`: Forceert openen van index bestand
+
+#### Voorbeelden van Geavanceerd Gebruik
+```powershell
+# Alleen Node.js installeren
+.\newpc_fixed.ps1 -RunNodeJSInstallation
+
+# Node.js installeren, NPM packages, server starten en index openen
+.\newpc_fixed.ps1 -RunNodeJSInstallation -RunNpmPackages -RunNodeServer -RunIndexOpen
+
+# Combinatie met andere parameters
+.\newpc_fixed.ps1 -WifiSSID "NetworkName" -RunNodeServer
+```
+
+**Opmerking:** 
+- De `-Run*` parameters worden NAAST de normale scriptuitvoering uitgevoerd
+- Ze dwingen de uitvoering van specifieke stappen af, zelfs als deze al eerder zijn uitgevoerd
+- Ideaal voor herhaalde of geforceerde installaties
 
 ## Beveiliging van Configuratiebestanden
 
