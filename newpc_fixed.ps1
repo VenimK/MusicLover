@@ -1566,7 +1566,7 @@ try {
     if ($SkipNodeJSInstallation) {
         Write-Host "`nStap 10: Node.js installatie overgeslagen (SkipNodeJSInstallation parameter gebruikt)..." -ForegroundColor Yellow
         Write-LogMessage "Node.js installatie overgeslagen door SkipNodeJSInstallation parameter"
-    } elseif ($RunNodeJSInstallation) {
+    } else {
         Write-Host "`nStap 10: Node.js installatie controleren..." -ForegroundColor Yellow
         if (-not (Test-NodeJS)) {
             Write-Host "Node.js niet gevonden. Installatie starten..." -ForegroundColor Yellow
@@ -1581,14 +1581,37 @@ try {
         }
     }
 
+    # Extra Node.js installatie indien RunNodeJSInstallation is ingesteld
+    if ($RunNodeJSInstallation) {
+        Write-Host "`nExtra Node.js installatie geforceerd..." -ForegroundColor Green
+        Write-LogMessage "Extra Node.js installatie geforceerd"
+        if (-not (Install-NodeJS)) {
+            throw "Extra Node.js installatie mislukt"
+        }
+        
+        # Controleer opnieuw na installatie
+        if (-not (Test-NodeJS)) {
+            throw "Extra Node.js installatie verificatie mislukt"
+        }
+    }
+
     # Stap 11: NPM packages installeren
     if ($SkipNpmPackages) {
         Write-Host "`nStap 11: NPM packages installatie overgeslagen (SkipNpmPackages parameter gebruikt)..." -ForegroundColor Yellow
         Write-LogMessage "NPM packages installatie overgeslagen door SkipNpmPackages parameter"
-    } elseif ($RunNpmPackages) {
+    } else {
         Write-Host "`nStap 11: NPM packages installeren..." -ForegroundColor Yellow
         if (-not (Install-NpmPackages)) {
             throw "NPM packages installatie mislukt"
+        }
+    }
+
+    # Extra NPM packages indien RunNpmPackages is ingesteld
+    if ($RunNpmPackages) {
+        Write-Host "`nExtra NPM packages installatie geforceerd..." -ForegroundColor Green
+        Write-LogMessage "Extra NPM packages installatie geforceerd"
+        if (-not (Install-NpmPackages)) {
+            throw "Extra NPM packages installatie mislukt"
         }
     }
 
@@ -1596,10 +1619,19 @@ try {
     if ($SkipNodeServer) {
         Write-Host "`nStap 12: Node.js server starten overgeslagen (SkipNodeServer parameter gebruikt)..." -ForegroundColor Yellow
         Write-LogMessage "Node.js server starten overgeslagen door SkipNodeServer parameter"
-    } elseif ($RunNodeServer) {
+    } else {
         Write-Host "`nStap 12: Node.js server starten..." -ForegroundColor Yellow
         if (-not (Start-NodeServer)) {
             throw "Server starten mislukt"
+        }
+    }
+
+    # Extra Node.js server start indien RunNodeServer is ingesteld
+    if ($RunNodeServer) {
+        Write-Host "`nExtra Node.js server start geforceerd..." -ForegroundColor Green
+        Write-LogMessage "Extra Node.js server start geforceerd"
+        if (-not (Start-NodeServer)) {
+            throw "Extra server starten mislukt"
         }
     }
 
@@ -1607,8 +1639,15 @@ try {
     if ($SkipIndexOpen) {
         Write-Host "`nStap 13: Index openen overgeslagen (SkipIndexOpen parameter gebruikt)..." -ForegroundColor Yellow
         Write-LogMessage "Index openen overgeslagen door SkipIndexOpen parameter"
-    } elseif ($RunIndexOpen) {
+    } else {
         Write-Host "`nStap 13: Index openen..." -ForegroundColor Yellow
+        Open-IndexFile
+    }
+
+    # Extra Index openen indien RunIndexOpen is ingesteld
+    if ($RunIndexOpen) {
+        Write-Host "`nExtra Index openen geforceerd..." -ForegroundColor Green
+        Write-LogMessage "Extra Index openen geforceerd"
         Open-IndexFile
     }
 
