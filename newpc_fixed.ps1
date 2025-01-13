@@ -542,7 +542,6 @@ function Install-WingetSoftware {
                     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
                     "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
                 )
-                WingetArgs = @("--locale", "nl-NL")
             },
             @{
                 Id = "7zip.7zip"
@@ -563,7 +562,6 @@ function Install-WingetSoftware {
                     "$env:ProgramFiles\VideoLAN\VLC\vlc.exe",
                     "${env:ProgramFiles(x86)}\VideoLAN\VLC\vlc.exe"
                 )
-                WingetArgs = @("--locale", "nl-NL")
             },
             @{
                 Id = "BelgianGovernment.Belgium-eIDmiddleware"
