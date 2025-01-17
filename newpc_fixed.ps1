@@ -2,7 +2,7 @@
 param(
     [switch]$SkipWindowsUpdates,
     [string]$WifiSSID,
-    [string]$WifiPassword,
+    [SecureString]$WifiPassword,
     [switch]$Verbose,
     [switch]$DryRun,
     [switch]$SkipNodeJSInstallation,     # Skip Stap 10: Node.js installatie
@@ -221,7 +221,7 @@ function Send-TextbeeSMS {
         } | ConvertTo-Json
 
         # Send request
-        $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -ContentType 'application/json'
+        $null = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -ContentType 'application/json'
         
         Write-Host "SMS notificatie succesvol verzonden" -ForegroundColor Green
         Write-LogMessage "SMS notificatie succesvol verzonden naar $PhoneNumber"
@@ -351,7 +351,7 @@ function Connect-Network {
         [Parameter(Mandatory=$false)]
         [string]$WifiSSID,
         [Parameter(Mandatory=$false)]
-        [string]$WifiPassword
+        [SecureString]$WifiPassword
     )
 
     Write-Host "`nNetwerk verbinding controleren..." -ForegroundColor Yellow
@@ -399,7 +399,6 @@ function Connect-Network {
         if (-not $WifiPassword) {
             Write-Host "Voer WiFi wachtwoord in:" -ForegroundColor Cyan
             $WifiPassword = Read-Host -AsSecureString
-            $WifiPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($WifiPassword))
         }
     }
 
@@ -407,9 +406,14 @@ function Connect-Network {
     Write-LogMessage "Poging tot verbinden met WiFi netwerk: $WifiSSID"
 
     try {
-        # Create WiFi profile XML
-        $hexSSID = [System.BitConverter]::ToString([System.Text.Encoding]::UTF8.GetBytes($WifiSSID)).Replace("-","")
-        $profileXml = @"
+        # Convert SecureString to plain text only when needed (within the function)
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($WifiPassword)
+        $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        
+        try {
+            # Create WiFi profile XML
+            $hexSSID = [System.BitConverter]::ToString([System.Text.Encoding]::UTF8.GetBytes($WifiSSID)).Replace("-","")
+            $profileXml = @"
 <?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
     <name>$WifiSSID</name>
@@ -431,47 +435,45 @@ function Connect-Network {
             <sharedKey>
                 <keyType>passPhrase</keyType>
                 <protected>false</protected>
-                <keyMaterial>$WifiPassword</keyMaterial>
+                <keyMaterial>$plainPassword</keyMaterial>
             </sharedKey>
         </security>
     </MSM>
 </WLANProfile>
 "@
-        # Add the profile
-        $profilePath = "$env:TEMP\WiFiProfile.xml"
-        $profileXml | Set-Content $profilePath -Encoding UTF8
-        $addResult = netsh wlan add profile filename="$profilePath"
-        
-        # Connect to network
-        $connectResult = netsh wlan connect name="$WifiSSID"
-        
-        # Wait for connection
-        $timeout = 30
-        $connected = $false
-        $startTime = Get-Date
-        
-        while (-not $connected -and ((Get-Date) - $startTime).TotalSeconds -lt $timeout) {
-            Start-Sleep -Seconds 2
-            $testConnection = Test-FastNetworkConnection
-            if ($testConnection) {
-                $connected = $true
-                break
+            # Add the profile
+            $profilePath = "$env:TEMP\WiFiProfile.xml"
+            $profileXml | Set-Content $profilePath -Encoding UTF8
+            $null = netsh wlan add profile filename="$profilePath"
+            
+            # Connect to network
+            netsh wlan connect name="$WifiSSID"
+            Start-Sleep -Seconds 5  # Wait for connection
+            
+            # Cleanup
+            if (Test-Path $profilePath) {
+                Remove-Item $profilePath -Force
+            }
+            
+            $hasConnection = Test-FastNetworkConnection
+            if ($hasConnection) {
+                Write-Host "Succesvol verbonden met $WifiSSID" -ForegroundColor Green
+                Write-LogMessage "Succesvol verbonden met WiFi netwerk: $WifiSSID"
+                return $true
+            } else {
+                Write-Host "Kon niet verbinden met $WifiSSID binnen 5 seconden" -ForegroundColor Yellow
+                Write-LogMessage "Timeout bij verbinden met WiFi netwerk: $WifiSSID"
+                return $false
             }
         }
-        
-        # Cleanup
-        if (Test-Path $profilePath) {
-            Remove-Item $profilePath -Force
-        }
-        
-        if ($connected) {
-            Write-Host "Succesvol verbonden met $WifiSSID" -ForegroundColor Green
-            Write-LogMessage "Succesvol verbonden met WiFi netwerk: $WifiSSID"
-            return $true
-        } else {
-            Write-Host "Kon niet verbinden met $WifiSSID binnen $timeout seconden" -ForegroundColor Yellow
-            Write-LogMessage "Timeout bij verbinden met WiFi netwerk: $WifiSSID"
-            return $false
+        finally {
+            # Clean up the plain text password from memory
+            if ($plainPassword) {
+                $plainPassword = $null
+            }
+            if ($BSTR) {
+                [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+            }
         }
     }
     catch {
@@ -482,7 +484,7 @@ function Connect-Network {
 }
 
 # Function to click buttons in windows
-function Click-Button {
+function Invoke-Button {
     param (
         [string]$WindowTitle,
         [string]$ButtonText
@@ -639,7 +641,7 @@ function Install-WingetSoftware {
             
             # Double check with winget if not found in registry/files
             if (-not $isInstalled) {
-                $wingetCheck = winget list --id $software.Id --exact
+                $null = winget list --id $software.Id --exact
                 $isInstalled = $LASTEXITCODE -eq 0
             }
             
@@ -870,8 +872,8 @@ function Install-WindowsUpdates {
         $failedJobs = $jobs | Where-Object { $_.State -eq 'Failed' }
         if ($failedJobs) {
             foreach ($job in $failedJobs) {
-                $error = Receive-Job -Job $job -ErrorAction SilentlyContinue
-                Write-LogMessage "Update taak mislukt: $error"
+                $jobError = Receive-Job -Job $job -ErrorAction SilentlyContinue
+                Write-LogMessage "Update taak mislukt: $jobError"
             }
             Write-Host "Sommige updates zijn mogelijk niet geinstalleerd" -ForegroundColor Yellow
         }
@@ -1549,92 +1551,92 @@ function Get-ClientNumber {
 
 # Function to install Notepad++
 function Install-NotepadPlusPlus {
-    try {
-        Write-Host "`nNotepad++ installatie starten..." -ForegroundColor Yellow
-        Write-LogMessage "Start Notepad++ installatie"
-
-        # Check if already installed
-        $exePaths = @(
-            "$env:ProgramFiles\Notepad++\notepad++.exe",
-            "${env:ProgramFiles(x86)}\Notepad++\notepad++.exe"
-        )
-        
-        $isInstalled = $false
-        foreach ($exePath in $exePaths) {
-            if (Test-Path $exePath) {
-                $isInstalled = $true
-                Write-Host "Notepad++ is al geïnstalleerd op: $exePath" -ForegroundColor Green
-                return $true
-            }
+    $exePaths = @(
+        "$env:ProgramFiles\Notepad++\notepad++.exe",
+        "${env:ProgramFiles(x86)}\Notepad++\notepad++.exe"
+    )
+    
+    # Check if already installed
+    foreach ($exePath in $exePaths) {
+        if (Test-Path $exePath) {
+            Write-Host "Notepad++ is al geïnstalleerd" -ForegroundColor Green
+            Write-LogMessage "Notepad++ is al geïnstalleerd"
+            return $true
         }
+    }
 
-        # Try installation methods in order
-        $methods = @(
-            @{
-                Name = "Winget"
-                Action = {
-                    Write-Host "Proberen te installeren via Winget..." -ForegroundColor Cyan
+    Write-Host "Notepad++ installeren..." -ForegroundColor Yellow
+    Write-LogMessage "Start Notepad++ installatie"
+
+    $methods = @(
+        @{
+            Name = "Winget"
+            Action = {
+                try {
+                    Write-Host "Proberen te installeren via Winget..." -ForegroundColor Yellow
+                    Write-LogMessage "Poging tot installatie via Winget"
                     winget install --id Notepad++.Notepad++ --exact --silent --accept-source-agreements --accept-package-agreements
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "Notepad++ succesvol geïnstalleerd via Winget" -ForegroundColor Green
+                        Write-LogMessage "Notepad++ installatie succesvol via Winget"
+                        return $true
+                    }
+                    return $false
                 }
-            },
-            @{
-                Name = "Direct Download"
-                Action = {
-                    Write-Host "Proberen te installeren via directe download..." -ForegroundColor Cyan
-                    $tempDir = Join-Path $env:TEMP "NPPInstall"
-                    New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+                catch {
+                    Write-LogMessage "Fout bij installatie via Winget: $_"
+                    return $false
+                }
+            }
+        },
+        @{
+            Name = "Direct Download"
+            Action = {
+                try {
+                    Write-Host "Proberen te installeren via directe download..." -ForegroundColor Yellow
+                    Write-LogMessage "Poging tot installatie via directe download"
+                    
+                    $tempFile = Join-Path $env:TEMP "npp.exe"
                     
                     # Download latest version
                     $downloadUrl = "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.6/npp.8.6.Installer.x64.exe"
-                    $installerPath = Join-Path $tempDir "npp_installer.exe"
+                    Invoke-WebRequest -Uri $downloadUrl -OutFile $tempFile
                     
-                    Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
-                    Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
+                    # Install silently
+                    Start-Process -FilePath $tempFile -ArgumentList "/S" -Wait
                     
-                    Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-                }
-            }
-        )
-
-        foreach ($method in $methods) {
-            Write-Host "`nMethode $($method.Name) proberen..." -ForegroundColor Yellow
-            Write-LogMessage "Probeer Notepad++ installatie via $($method.Name)"
-            
-            try {
-                & $method.Action
-                Start-Sleep -Seconds 5  # Wait for installation to complete
-                
-                # Verify installation
-                $installed = $false
-                foreach ($exePath in $exePaths) {
-                    if (Test-Path $exePath) {
-                        $installed = $true
-                        Write-Host "Notepad++ succesvol geïnstalleerd via $($method.Name)" -ForegroundColor Green
-                        Write-LogMessage "Notepad++ installatie succesvol via $($method.Name)"
-                        return $true
+                    # Cleanup
+                    Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+                    
+                    # Verify installation
+                    foreach ($exePath in $exePaths) {
+                        if (Test-Path $exePath) {
+                            Write-Host "Notepad++ succesvol geïnstalleerd via directe download" -ForegroundColor Green
+                            Write-LogMessage "Notepad++ installatie succesvol via directe download"
+                            return $true
+                        }
                     }
+                    return $false
                 }
-                
-                if (-not $installed) {
-                    Write-Host "Installatie via $($method.Name) lijkt mislukt, probeer volgende methode..." -ForegroundColor Yellow
-                    Write-LogMessage "Notepad++ installatie mislukt via $($method.Name)"
-                    continue
+                catch {
+                    Write-LogMessage "Fout bij installatie via directe download: $_"
+                    return $false
                 }
-            }
-            catch {
-                Write-Host "Fout bij installatie via $($method.Name): $($_.Exception.Message)" -ForegroundColor Yellow
-                Write-LogMessage "Fout bij Notepad++ installatie via $($method.Name): $($_.Exception.Message)"
-                continue
             }
         }
+    )
 
-        throw "Kon Notepad++ niet installeren via beschikbare methoden"
+    foreach ($method in $methods) {
+        if (& $method.Action) {
+            return $true
+        }
+        Write-Host "Installatie via $($method.Name) mislukt, probeer volgende methode..." -ForegroundColor Yellow
+        Write-LogMessage "Installatie via $($method.Name) mislukt"
     }
-    catch {
-        Write-Host "Notepad++ installatie mislukt: $($_.Exception.Message)" -ForegroundColor Red
-        Write-LogMessage "Notepad++ installatie mislukt: $($_.Exception.Message)"
-        return $false
-    }
+
+    Write-Host "Alle installatiemethoden voor Notepad++ zijn mislukt" -ForegroundColor Red
+    Write-LogMessage "Alle installatiemethoden voor Notepad++ zijn mislukt"
+    return $false
 }
 
 Add-Type @"
@@ -1783,7 +1785,7 @@ try {
         
         # Double check with winget if not found in registry/files
         if (-not $isInstalled) {
-            $wingetCheck = winget list --id $software.Id --exact
+            $null = winget list --id $software.Id --exact
             $isInstalled = $LASTEXITCODE -eq 0
         }
         
