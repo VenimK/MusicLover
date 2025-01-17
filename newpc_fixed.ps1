@@ -1071,6 +1071,44 @@ function Install-Winget {
         # Start progress
         Show-Progress -Activity "Winget Installatie" -Status "Voorbereiden..." -PercentComplete 0
 
+        # Install prerequisites
+        Show-Progress -Activity "Winget Installatie" -Status "Controleren vereisten..." -PercentComplete 10
+        Write-Host "`nControleren en installeren van vereiste componenten..." -ForegroundColor Cyan
+        Write-LogMessage "Controleren vereiste componenten"
+
+        # Install VCLibs
+        try {
+            $vcLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+            $vcLibsPath = "$env:TEMP\Microsoft.VCLibs.x64.14.00.Desktop.appx"
+            Write-Host "Downloaden VCLibs..." -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $vcLibsUrl -OutFile $vcLibsPath
+            Add-AppxPackage -Path $vcLibsPath -ErrorAction SilentlyContinue
+            Remove-Item $vcLibsPath -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Host "Waarschuwing: VCLibs installatie overgeslagen: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-LogMessage "VCLibs installatie overgeslagen: $($_.Exception.Message)"
+        }
+
+        # Install UI.Xaml
+        try {
+            $xamlUrl = "https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.7.3"
+            $xamlPath = "$env:TEMP\Microsoft.UI.Xaml.2.7.3.zip"
+            $xamlExtractPath = "$env:TEMP\Microsoft.UI.Xaml"
+            
+            Write-Host "Downloaden UI.Xaml..." -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $xamlUrl -OutFile $xamlPath
+            Expand-Archive -Path $xamlPath -DestinationPath $xamlExtractPath -Force
+            Add-AppxPackage -Path "$xamlExtractPath\tools\AppX\x64\Release\Microsoft.UI.Xaml.2.7.appx" -ErrorAction SilentlyContinue
+            
+            Remove-Item $xamlPath -ErrorAction SilentlyContinue
+            Remove-Item $xamlExtractPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Host "Waarschuwing: UI.Xaml installatie overgeslagen: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-LogMessage "UI.Xaml installatie overgeslagen: $($_.Exception.Message)"
+        }
+
         # Controleer of winget al is geinstalleerd
         $hasWinget = Get-AppxPackage -Name Microsoft.DesktopAppInstaller
 
@@ -1086,20 +1124,56 @@ function Install-Winget {
         Show-Progress -Activity "Winget Installatie" -Status "Downloaden..." -PercentComplete 40
         Write-Host "`nNieuwste Winget installer downloaden..." -ForegroundColor Cyan
         Write-LogMessage "Downloaden Winget installer"
-        $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
         
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($wingetUrl, "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle")
+        $wingetPath = "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+        $wingetUrls = @(
+            "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle",
+            "https://aka.ms/getwinget"
+        )
+
+        $downloadSuccess = $false
+        foreach ($url in $wingetUrls) {
+            try {
+                Write-Host "Proberen te downloaden van: $url" -ForegroundColor Cyan
+                Invoke-WebRequest -Uri $url -OutFile $wingetPath
+                $downloadSuccess = $true
+                break
+            }
+            catch {
+                Write-Host "Download mislukt van $url : $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-LogMessage "Winget download mislukt van $url : $($_.Exception.Message)"
+                continue
+            }
+        }
+
+        if (-not $downloadSuccess) {
+            throw "Kon Winget installer niet downloaden van alle beschikbare bronnen"
+        }
 
         Show-Progress -Activity "Winget Installatie" -Status "Installeren..." -PercentComplete 60
         Write-Host "`nWinget installeren..." -ForegroundColor Cyan
         Write-LogMessage "Installeren Winget"
-        Add-AppxPackage "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+        
+        try {
+            Add-AppxPackage -Path $wingetPath -ErrorAction Stop
+        }
+        catch {
+            Write-Host "Eerste installatie poging mislukt, proberen met alternatieve methode..." -ForegroundColor Yellow
+            Write-LogMessage "Eerste installatie poging mislukt, proberen alternatief"
+            
+            # Try alternative installation method
+            try {
+                Start-Process "PowerShell" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command Add-AppxPackage -Path `"$wingetPath`"" -Wait -NoNewWindow
+            }
+            catch {
+                throw "Beide installatie methoden zijn mislukt: $($_.Exception.Message)"
+            }
+        }
 
         # Ruim het installatiebestand op
         Show-Progress -Activity "Winget Installatie" -Status "Opruimen..." -PercentComplete 80
-        if (Test-Path "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle") {
-            Remove-Item "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+        if (Test-Path $wingetPath) {
+            Remove-Item $wingetPath -ErrorAction SilentlyContinue
         }
 
         # Ververs omgevingsvariabelen
@@ -1109,7 +1183,25 @@ function Install-Winget {
         Show-Progress -Activity "Winget Installatie" -Status "Verificatie..." -PercentComplete 90
         Write-Host "`nWinget installatie verifieren..." -ForegroundColor Cyan
         Write-LogMessage "Verifieren Winget installatie"
-        $wingetVersion = winget --version
+        
+        $retryCount = 0
+        $maxRetries = 3
+        $wingetVersion = $null
+        
+        while ($retryCount -lt $maxRetries) {
+            try {
+                $wingetVersion = winget --version
+                break
+            }
+            catch {
+                $retryCount++
+                if ($retryCount -eq $maxRetries) {
+                    throw "Kon Winget versie niet verifieren na $maxRetries pogingen"
+                }
+                Write-Host "Wachten op Winget initialisatie... (poging $retryCount van $maxRetries)" -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+            }
+        }
         
         # Accept Microsoft Store agreements
         Show-Progress -Activity "Winget Installatie" -Status "Configureren..." -PercentComplete 95
