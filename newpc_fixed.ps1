@@ -523,6 +523,16 @@ function Install-WingetSoftware {
         
         Show-Progress -Activity "Winget" -Status "Voorbereiden..." -PercentComplete 10
         
+        # Verify winget is working
+        try {
+            $wingetVersion = winget --version
+            Write-Host "Winget versie: $wingetVersion" -ForegroundColor Cyan
+            Write-LogMessage "Winget versie: $wingetVersion"
+        }
+        catch {
+            throw "Winget is niet correct geïnstalleerd. Probeer het script opnieuw uit te voeren."
+        }
+        
         # Get all available upgrades at once
         Write-Host "Beschikbare updates controleren..." -ForegroundColor Cyan
         $availableUpdates = winget upgrade --accept-source-agreements | Out-String
@@ -542,12 +552,20 @@ function Install-WingetSoftware {
                     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
                     "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
                 )
+                ExePaths = @(
+                    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+                    "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+                )
             },
             @{
                 Id = "7zip.7zip"
                 RegPaths = @(
                     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{23170F69-40C1-2702-2102-000001000000}",
                     "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{23170F69-40C1-2702-2102-000001000000}"
+                )
+                ExePaths = @(
+                    "$env:ProgramFiles\7-Zip\7z.exe",
+                    "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
                 )
             },
             @{
@@ -575,19 +593,6 @@ function Install-WingetSoftware {
                 RegPaths = @(
                     "HKLM:\SOFTWARE\Belgian eID Viewer",
                     "HKLM:\SOFTWARE\Wow6432Node\Belgian eID Viewer"
-                )
-            },
-            @{
-                Id = "Notepad++.Notepad++"
-                RegPaths = @(
-                    "HKLM:\SOFTWARE\Notepad++",
-                    "HKLM:\SOFTWARE\Wow6432Node\Notepad++",
-                    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Notepad++",
-                    "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Notepad++"
-                )
-                ExePaths = @(
-                    "$env:ProgramFiles\Notepad++\notepad++.exe",
-                    "${env:ProgramFiles(x86)}\Notepad++\notepad++.exe"
                 )
             },
             @{
@@ -644,14 +649,37 @@ function Install-WingetSoftware {
                     Write-Host "$($software.Id) update beschikbaar. Bijwerken..." -ForegroundColor Yellow
                     Write-LogMessage "$($software.Id) update beschikbaar, start upgrade"
                     
-                    if ($software.WingetArgs) {
-                        winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
-                    } else {
-                        winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                    $retryCount = 0
+                    $maxRetries = if ($software.RetryCount) { $software.RetryCount } else { 1 }
+                    $success = $false
+                    
+                    while (-not $success -and $retryCount -lt $maxRetries) {
+                        if ($retryCount -gt 0) {
+                            Write-Host "Poging $($retryCount + 1) van $maxRetries..." -ForegroundColor Yellow
+                        }
+                        
+                        if ($software.WingetArgs) {
+                            winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
+                        } else {
+                            winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                        }
+                        
+                        if ($LASTEXITCODE -eq 0) {
+                            $success = $true
+                            Write-Host "$($software.Id) is bijgewerkt naar de laatste versie" -ForegroundColor Green
+                            Write-LogMessage "$($software.Id) upgrade succesvol"
+                        } else {
+                            $retryCount++
+                            if ($retryCount -lt $maxRetries) {
+                                Write-Host "Update mislukt, opnieuw proberen..." -ForegroundColor Yellow
+                                Start-Sleep -Seconds 2
+                            }
+                        }
                     }
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Host "$($software.Id) is bijgewerkt naar de laatste versie" -ForegroundColor Green
-                        Write-LogMessage "$($software.Id) upgrade succesvol"
+                    
+                    if (-not $success) {
+                        Write-Host "Waarschuwing: $($software.Id) update mislukt na $maxRetries pogingen" -ForegroundColor Yellow
+                        Write-LogMessage "$($software.Id) update mislukt na $maxRetries pogingen"
                     }
                 } else {
                     Write-Host "$($software.Id) is al geinstalleerd en up-to-date" -ForegroundColor Green
@@ -660,24 +688,64 @@ function Install-WingetSoftware {
             } else {
                 # Install if not present
                 Write-Host "$($software.Id) wordt geinstalleerd..." -ForegroundColor Yellow
-                if ($software.WingetArgs) {
-                    winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
-                } else {
-                    winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                
+                $retryCount = 0
+                $maxRetries = if ($software.RetryCount) { $software.RetryCount } else { 1 }
+                $success = $false
+                
+                while (-not $success -and $retryCount -lt $maxRetries) {
+                    if ($retryCount -gt 0) {
+                        Write-Host "Poging $($retryCount + 1) van $maxRetries..." -ForegroundColor Yellow
+                    }
+                    
+                    if ($software.WingetArgs) {
+                        winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
+                    } else {
+                        winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                    }
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        $success = $true
+                        Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
+                        Write-LogMessage "$($software.Id) installatie succesvol"
+                        
+                        # Extra verification for new installations
+                        Start-Sleep -Seconds 2  # Wait for installation to complete
+                        if ($software.ExePaths) {
+                            $exeExists = $false
+                            foreach ($exePath in $software.ExePaths) {
+                                if (Test-Path $exePath) {
+                                    $exeExists = $true
+                                    break
+                                }
+                            }
+                            if (-not $exeExists) {
+                                Write-Host "Waarschuwing: $($software.Id) executable niet gevonden na installatie" -ForegroundColor Yellow
+                                Write-LogMessage "$($software.Id) executable niet gevonden na installatie"
+                                $success = $false  # Mark as failed to trigger retry
+                            }
+                        }
+                    }
+                    
+                    if (-not $success) {
+                        $retryCount++
+                        if ($retryCount -lt $maxRetries) {
+                            Write-Host "Installatie mislukt, opnieuw proberen..." -ForegroundColor Yellow
+                            Start-Sleep -Seconds 2
+                        }
+                    }
                 }
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
-                    Write-LogMessage "$($software.Id) installatie succesvol"
-                } else {
-                    Write-Host "Waarschuwing: $($software.Id) installatie mislukt" -ForegroundColor Yellow
-                    Write-LogMessage "$($software.Id) installatie mislukt"
+                
+                if (-not $success) {
+                    Write-Host "Waarschuwing: $($software.Id) installatie mislukt na $maxRetries pogingen" -ForegroundColor Yellow
+                    Write-LogMessage "$($software.Id) installatie mislukt na $maxRetries pogingen"
                 }
             }
         }
         
         Show-Progress -Activity "Software Installatie" -Status "Voltooid" -PercentComplete 100
         Write-Host "`nAlle software installaties voltooid" -ForegroundColor Green
-        Write-LogMessage "Alle software installaties voltooid"
+        Write-LogMessage "Software installaties voltooid"
         return $true
     }
     catch {
@@ -989,7 +1057,6 @@ function Start-NodeServer {
     }
 }
 
-
 # Function to optimize power settings
 function Set-OptimalPowerSettings {
     try {
@@ -1211,7 +1278,6 @@ function Install-Winget {
         
         # Accept Microsoft Store agreements
         Show-Progress -Activity "Winget Installatie" -Status "Configureren..." -PercentComplete 95
-        Write-Host "`nMicrosoft Store voorwaarden accepteren..." -ForegroundColor Yellow
         winget settings --enable LocalManifestFiles
         winget settings --enable MSStore
         winget source reset --force msstore
@@ -1481,6 +1547,95 @@ function Get-ClientNumber {
     return $null
 }
 
+# Function to install Notepad++
+function Install-NotepadPlusPlus {
+    try {
+        Write-Host "`nNotepad++ installatie starten..." -ForegroundColor Yellow
+        Write-LogMessage "Start Notepad++ installatie"
+
+        # Check if already installed
+        $exePaths = @(
+            "$env:ProgramFiles\Notepad++\notepad++.exe",
+            "${env:ProgramFiles(x86)}\Notepad++\notepad++.exe"
+        )
+        
+        $isInstalled = $false
+        foreach ($exePath in $exePaths) {
+            if (Test-Path $exePath) {
+                $isInstalled = $true
+                Write-Host "Notepad++ is al geïnstalleerd op: $exePath" -ForegroundColor Green
+                return $true
+            }
+        }
+
+        # Try installation methods in order
+        $methods = @(
+            @{
+                Name = "Winget"
+                Action = {
+                    Write-Host "Proberen te installeren via Winget..." -ForegroundColor Cyan
+                    winget install --id Notepad++.Notepad++ --exact --silent --accept-source-agreements --accept-package-agreements
+                }
+            },
+            @{
+                Name = "Direct Download"
+                Action = {
+                    Write-Host "Proberen te installeren via directe download..." -ForegroundColor Cyan
+                    $tempDir = Join-Path $env:TEMP "NPPInstall"
+                    New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+                    
+                    # Download latest version
+                    $downloadUrl = "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.6/npp.8.6.Installer.x64.exe"
+                    $installerPath = Join-Path $tempDir "npp_installer.exe"
+                    
+                    Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
+                    Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
+                    
+                    Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+        )
+
+        foreach ($method in $methods) {
+            Write-Host "`nMethode $($method.Name) proberen..." -ForegroundColor Yellow
+            Write-LogMessage "Probeer Notepad++ installatie via $($method.Name)"
+            
+            try {
+                & $method.Action
+                Start-Sleep -Seconds 5  # Wait for installation to complete
+                
+                # Verify installation
+                $installed = $false
+                foreach ($exePath in $exePaths) {
+                    if (Test-Path $exePath) {
+                        $installed = $true
+                        Write-Host "Notepad++ succesvol geïnstalleerd via $($method.Name)" -ForegroundColor Green
+                        Write-LogMessage "Notepad++ installatie succesvol via $($method.Name)"
+                        return $true
+                    }
+                }
+                
+                if (-not $installed) {
+                    Write-Host "Installatie via $($method.Name) lijkt mislukt, probeer volgende methode..." -ForegroundColor Yellow
+                    Write-LogMessage "Notepad++ installatie mislukt via $($method.Name)"
+                    continue
+                }
+            }
+            catch {
+                Write-Host "Fout bij installatie via $($method.Name): $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-LogMessage "Fout bij Notepad++ installatie via $($method.Name): $($_.Exception.Message)"
+                continue
+            }
+        }
+
+        throw "Kon Notepad++ niet installeren via beschikbare methoden"
+    }
+    catch {
+        Write-Host "Notepad++ installatie mislukt: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Notepad++ installatie mislukt: $($_.Exception.Message)"
+        return $false
+    }
+}
 
 Add-Type @"
     using System;
@@ -1577,6 +1732,13 @@ try {
     if (-not (Install-Winget)) {
         Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
         Write-LogMessage "Winget installatie mislukt, script gaat door"
+    }
+
+    # Stap 6b: Notepad++ installatie
+    Write-Host "`nStap 6b: Notepad++ installeren..." -ForegroundColor Yellow
+    if (-not (Install-NotepadPlusPlus)) {
+        Write-Host "Notepad++ installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
+        Write-LogMessage "Notepad++ installatie mislukt, script gaat door"
     }
 
     # Stap 7: Winget software installatie
