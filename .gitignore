@@ -7,3 +7,5 @@ config.ps1
 config.js
 # SMS Configuration
 sms_config.ps1
+# Bootstrap script with sensitive URLs
+bootstrap.ps1
