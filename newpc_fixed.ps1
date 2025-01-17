@@ -581,7 +581,13 @@ function Install-WingetSoftware {
                 Id = "Notepad++.Notepad++"
                 RegPaths = @(
                     "HKLM:\SOFTWARE\Notepad++",
-                    "HKLM:\SOFTWARE\Wow6432Node\Notepad++"
+                    "HKLM:\SOFTWARE\Wow6432Node\Notepad++",
+                    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Notepad++",
+                    "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Notepad++"
+                )
+                ExePaths = @(
+                    "$env:ProgramFiles\Notepad++\notepad++.exe",
+                    "${env:ProgramFiles(x86)}\Notepad++\notepad++.exe"
                 )
             },
             @{
