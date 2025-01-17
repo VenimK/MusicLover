@@ -1,204 +1,138 @@
-# Windows PC Setup Script
+# Windows PC Setup Automatisering
 
-Een geautomatiseerd PowerShell script voor het installeren en configureren van nieuwe Windows PC's.
+Dit script automatiseert de installatie en configuratie van nieuwe Windows PC's in een bedrijfsomgeving. Het script regelt alles van energie-instellingen tot software-installatie, waardoor het installatieproces consistent en efficiënt verloopt.
 
-## Features
+## Functionaliteiten
 
-### Automatische Installaties
-1. **Microsoft Office**
-   - Microsoft 365 Business
-   - Office 2021
-   - Office 2024
-   - Interactieve keuze met 30 seconden timeout
+- **Energie-instellingen**
+  - Optimaliseert energie-instellingen voor desktop gebruik
+  - Voorkomt slaapstand tijdens installatie
 
-2. **Standaard Software via Winget**
-   - Google Chrome
-   - 7-Zip
-   - VLC Media Player
-   - Belgische eID software
-   - eID Viewer
-   - Notepad++
-   - Adobe Reader DC
+- **Netwerk Configuratie**
+  - Automatische WiFi verbinding
+  - Veilige wachtwoordverwerking
+  - Netwerkverbinding verificatie
 
-3. **Ontwikkeltools**
-   - Node.js (LTS versie)
-   - NPM packages
+- **Windows Updates**
+  - Automatische Windows Updates installatie
+  - Voortgangsindicatie
+  - Foutafhandeling en herhaalpogingen
 
-### Systeem Configuratie
-1. **Netwerk Setup**
-   - Automatische WiFi configuratie
-   - Netwerk connectiviteit check
-   - Firewall regels voor Node.js server
+- **Software Installatie**
+  - Winget pakketbeheer installatie
+  - Notepad++ met alternatieve installatiemethoden
+  - Belgische eID software
+  - Adobe Reader
+  - Aanvullende software via Winget
 
-2. **Windows Updates**
-   - Installatie van reguliere updates
-   - Optionele updates
-   - Mogelijkheid om updates over te slaan met `-SkipWindowsUpdates`
+- **Ontwikkelomgeving**
+  - Node.js installatie
+  - NPM packages configuratie
+  - Server instellingen
 
-3. **Energie-instellingen**
-   - Optimalisatie tijdens installatie
-   - Automatisch herstel naar standaard instellingen na afloop
+## Vereisten
 
-### Monitoring & Notificaties
-1. **SMS Notificaties via Textbee API**
-   - Installatie status updates
-   - Foutmeldingen
-   - Configureerbaar via `sms_config.ps1`
+- Windows 10 of hoger
+- PowerShell 5.1 of hoger
+- Administratieve rechten
+- Internetverbinding
 
-2. **Uitgebreide Logging**
-   - Gedetailleerde logbestanden
-   - Voortgangsindicatoren
-   - Foutrapportage
+## Snelle Start
 
-## Configuratie
-
-### WiFi Configuratie (config.ps1)
-Maak een `config.ps1` bestand aan voor WiFi instellingen:
-```powershell
-# WiFi Configuration
-$Global:WifiConfig = @{
-    SSID = "JouwWiFiNetwerk"
-    Password = "JouwWiFiWachtwoord"
-}
-```
-
-Voor het configureren van de WiFi-verbinding zijn er drie opties:
-
-1. **Configuratiebestand gebruiken (aanbevolen voor herhaald gebruik):**
-   - Kopieer `config.template.ps1` naar `config.ps1`
-   - Bewerk `config.ps1` met je WiFi-gegevens
-   - `config.ps1` wordt automatisch genegeerd door Git voor veiligheid
-
-2. **Parameters gebruiken (voor eenmalig gebruik):**
+1. Download het script:
    ```powershell
-   .\newpc_fixed.ps1 -WifiSSID "JouwWiFiNetwerk" -WifiPassword "JouwWiFiWachtwoord"
+   Invoke-WebRequest -Uri "JOUW_GIST_URL" -OutFile "$env:TEMP\newpc_fixed.ps1"
    ```
 
-3. **Interactieve invoer:**
-   - Start het script zonder parameters
-   - Voer de WiFi-gegevens in wanneer daarom wordt gevraagd
+2. Voer het script uit met standaardinstellingen:
+   ```powershell
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\newpc_fixed.ps1"
+   ```
 
-### Email Configuratie (config.js)
-Voor het verzenden van emails heeft de server een `config.js` bestand nodig:
+## Gebruiksvoorbeelden
 
-```javascript
-module.exports = {
-    email: {
-        user: 'jouw-email@gmail.com',
-        pass: 'jouw-app-wachtwoord',    // Gebruik een app-specifiek wachtwoord
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false
-    },
-    server: {
-        port: 3000
-    }
-};
-```
-
-**Belangrijke Notities voor Email Configuratie:**
-- Gebruik NOOIT je gewone Gmail wachtwoord
-- Maak een App-specifiek wachtwoord aan in je Google Account instellingen
-- Het bestand staat in `.gitignore` en wordt niet meegestuurd bij commits
-
-### SMS Configuratie (sms_config.ps1)
-Maak een `sms_config.ps1` bestand aan met de volgende inhoud:
-```powershell
-# Textbee API Configuration
-$TEXTBEE_DEVICE_ID = "your_device_id"
-$TEXTBEE_API_KEY = "your_api_key"
-$TEXTBEE_NOTIFICATION_PHONE = "your_phone_number"
-```
-
-### Script Parameters
-
-#### Basis Parameters
-- `-SkipWindowsUpdates`: Slaat Windows Updates over
-- `-WifiSSID`: WiFi netwerk naam
-- `-WifiPassword`: WiFi wachtwoord
-- `-Verbose`: Toont extra debug informatie
-- `-DryRun`: Simuleert uitvoering zonder wijzigingen
-
-#### Nieuwe Uitvoeringsparameters
-- `-RunNodeJSInstallation`: Forceert Node.js installatie
-- `-RunNpmPackages`: Forceert NPM packages installatie
-- `-RunNodeServer`: Forceert Node.js server start
-- `-RunIndexOpen`: Forceert openen van index bestand
-
-#### Voorbeelden van Geavanceerd Gebruik
-```powershell
-# Alleen Node.js installeren
-.\newpc_fixed.ps1 -RunNodeJSInstallation
-
-# Node.js installeren, NPM packages, server starten en index openen
-.\newpc_fixed.ps1 -RunNodeJSInstallation -RunNpmPackages -RunNodeServer -RunIndexOpen
-
-# Combinatie met andere parameters
-.\newpc_fixed.ps1 -WifiSSID "NetworkName" -RunNodeServer
-```
-
-**Opmerking:** 
-- De `-Run*` parameters worden NAAST de normale scriptuitvoering uitgevoerd
-- Ze dwingen de uitvoering van specifieke stappen af, zelfs als deze al eerder zijn uitgevoerd
-- Ideaal voor herhaalde of geforceerde installaties
-
-## Beveiliging van Configuratiebestanden
-
-### Veiligheidsmaatregelen
-1. **Git Beveiliging**
-   - Alle configuratiebestanden (`config.ps1`, `config.js`, `sms_config.ps1`) staan in `.gitignore`
-   - Voorkomt per ongeluk delen van gevoelige informatie
-   - Template bestanden worden wel meegeleverd
-
-2. **Wachtwoordbeveiliging**
-   - Gebruik app-specifieke wachtwoorden voor Gmail
-   - WiFi wachtwoorden alleen lokaal opgeslagen
-   - API keys veilig opgeslagen in configuratiebestanden
-
-3. **Fallback Mechanismen**
-   - Automatische fallback naar omgevingsvariabelen als configuratiebestanden ontbreken
-   - Interactieve modus als backup voor ontbrekende instellingen
-
-## Gebruik
-
-1. Start PowerShell als Administrator
-2. Navigeer naar de script directory
-3. Voer het script uit:
+### Basis Gebruik
 ```powershell
 .\newpc_fixed.ps1
 ```
 
-Met parameters:
+### Met WiFi Configuratie
 ```powershell
-.\newpc_fixed.ps1 -WifiSSID "NetworkName" -WifiPassword "NetworkPassword"
+$wachtwoord = Read-Host -AsSecureString "Voer WiFi wachtwoord in"
+.\newpc_fixed.ps1 -WifiSSID "BedrijfsWiFi" -WifiPassword $wachtwoord
 ```
 
-## Vereisten
+### Specifieke Stappen Overslaan
+```powershell
+.\newpc_fixed.ps1 -SkipWindowsUpdates -SkipNodeJSInstallation
+```
 
-- Windows 10/11
-- PowerShell 5.1 of hoger
-- Administrator rechten
-- Internet verbinding
+## Parameters
 
-## Veiligheid
+| Parameter | Beschrijving |
+|-----------|--------------|
+| `-SkipWindowsUpdates` | Sla Windows Updates over |
+| `-WifiSSID` | WiFi netwerknaam |
+| `-WifiPassword` | WiFi wachtwoord (als SecureString) |
+| `-Verbose` | Toon gedetailleerde logging |
+| `-DryRun` | Test modus - geen echte wijzigingen |
+| `-SkipNodeJSInstallation` | Sla Node.js installatie over |
 
-- Gevoelige informatie wordt opgeslagen in configuratiebestanden (uitgesloten van git)
-- Automatische fallback naar omgevingsvariabelen
-- Veilige opslag van credentials
+## Logging
 
-## Foutafhandeling
+Het script maakt gedetailleerde logbestanden aan op:
+```
+%TEMP%\newpc_setup_[Klantnummer]_[Datum].log
+```
 
-- Uitgebreide logging van fouten
-- SMS notificaties bij problemen
-- Automatische hervatting waar mogelijk
-- Duidelijke foutmeldingen in console
+## Probleemoplossing
 
-## Server Functionaliteit
+### Veelvoorkomende Problemen
 
-- Automatische Node.js server setup
-- Poort 3000 configuratie
-- Firewall regels worden automatisch aangemaakt
-- Server start automatisch na installatie
+1. **Winget Installatie Mislukt**
+   - Script probeert automatisch alternatieve installatiemethoden
+   - Controleer Windows App Installer vereisten
 
+2. **Netwerkverbinding Problemen**
+   - Verifieer WiFi gegevens
+   - Controleer netwerkbeschikbaarheid
+   - Script bevat herhaalpogingen
 
- 2024 TechStick. Alle rechten voorbehouden. Contact: @ techmusiclover@outlook.be
+3. **Software Installatie Fouten**
+   - Controleer internetverbinding
+   - Verifieer of Windows Update service draait
+   - Bekijk logbestanden voor specifieke foutmeldingen
+
+## Beveiligingsfuncties
+
+- Veilige wachtwoordverwerking met SecureString
+- Opschoning van gevoelige gegevens
+- Veilige software download verificatie
+- Beschermde logbestanden
+
+## Bijdragen
+
+1. Fork de repository
+2. Maak een feature branch
+3. Dien een pull request in
+
+## Licentie
+
+[Jouw Licentie Hier]
+
+## Ondersteuning
+
+Voor ondersteuning, [maak een issue aan](jouw-repo-issues-link) of neem contact op met je systeembeheerder.
+
+## Wijzigingslog
+
+### Versie 2.0 (2024-01-17)
+- Toegevoegd: veilige wachtwoordverwerking
+- Verbeterd: Notepad++ installatie betrouwbaarheid
+- Verbeterd: foutafhandeling en logging
+- Toegevoegd: meerdere software installatiemethoden
+
+### Versie 1.0
+- Eerste uitgave
+
+ 2024 TechStick. Alle rechten voorbehouden. Contact: techmusiclover@outlook.be

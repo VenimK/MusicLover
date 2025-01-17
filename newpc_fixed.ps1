@@ -1,3 +1,96 @@
+<#
+.SYNOPSIS
+    Geautomatiseerd installatiescript voor nieuwe Windows PC's in een bedrijfsomgeving.
+
+.DESCRIPTION
+    Dit script automatiseert het installatieproces van nieuwe Windows PC's, inclusief:
+    - Configuratie van energie-instellingen
+    - Netwerk/WiFi configuratie
+    - Windows Updates
+    - Software installatie via Winget
+    - Installatie van specifieke software (Notepad++, Belgian eID, etc.)
+    - Node.js omgeving setup
+    
+    Het script bevat foutafhandeling, logging en meerdere installatiemethoden
+    voor betere betrouwbaarheid.
+
+.PARAMETER SkipWindowsUpdates
+    Sla de Windows Updates installatie over.
+
+.PARAMETER WifiSSID
+    De naam van het WiFi netwerk waarmee verbinding moet worden gemaakt.
+
+.PARAMETER WifiPassword
+    Het wachtwoord voor het WiFi netwerk. Moet worden aangeleverd als SecureString voor veiligheid.
+
+.PARAMETER Verbose
+    Schakel uitgebreide logging in voor gedetailleerde informatie.
+
+.PARAMETER DryRun
+    Voer het script uit zonder daadwerkelijke wijzigingen (test modus).
+
+.PARAMETER SkipNodeJSInstallation
+    Sla de Node.js installatie over.
+
+.PARAMETER SkipNpmPackages
+    Sla de NPM packages installatie over.
+
+.PARAMETER SkipNodeServer
+    Sla het starten van de Node.js server over.
+
+.PARAMETER SkipIndexOpen
+    Sla het openen van het index bestand over.
+
+.PARAMETER RunNodeJSInstallation
+    Forceer de Node.js installatie.
+
+.PARAMETER RunNpmPackages
+    Forceer de NPM packages installatie.
+
+.PARAMETER RunNodeServer
+    Forceer het starten van de Node.js server.
+
+.PARAMETER RunIndexOpen
+    Forceer het openen van het index bestand.
+
+.EXAMPLE
+    # Uitvoeren met standaard instellingen
+    .\newpc_fixed.ps1
+
+.EXAMPLE
+    # Uitvoeren met specifieke WiFi gegevens
+    $wachtwoord = Read-Host -AsSecureString "Voer WiFi wachtwoord in"
+    .\newpc_fixed.ps1 -WifiSSID "BedrijfsWiFi" -WifiPassword $wachtwoord
+
+.EXAMPLE
+    # Uitvoeren zonder Windows Updates
+    .\newpc_fixed.ps1 -SkipWindowsUpdates
+
+.NOTES
+    Versie:         2.0
+    Auteur:         TechStick
+    Aanmaakdatum:   2024-01-17
+    
+    Vereisten:
+    - Windows 10 of hoger
+    - PowerShell 5.1 of hoger
+    - Administratieve rechten
+    
+    Het script zal:
+    1. Energie-instellingen configureren
+    2. Netwerk verbinding opzetten
+    3. Klantnummer opvragen
+    4. Windows Updates installeren (tenzij overgeslagen)
+    5. Winget installeren
+    6. Notepad++ installeren (met fallback methoden)
+    7. Overige software via Winget installeren
+    8. Node.js omgeving opzetten (tenzij overgeslagen)
+
+.LINK
+    https://github.com/yourusername/yourrepository
+
+#>
+
 # Script parameters
 param(
     [switch]$SkipWindowsUpdates,
@@ -5,14 +98,14 @@ param(
     [SecureString]$WifiPassword,
     [switch]$Verbose,
     [switch]$DryRun,
-    [switch]$SkipNodeJSInstallation,     # Skip Stap 10: Node.js installatie
-    [switch]$SkipNpmPackages,            # Skip Stap 11: NPM packages installeren
-    [switch]$SkipNodeServer,             # Skip Stap 12: Server starten
-    [switch]$SkipIndexOpen,              # Skip Stap 13: Index openen
-    [switch]$RunNodeJSInstallation,     # Explicitly run Stap 10: Node.js installatie
-    [switch]$RunNpmPackages,            # Explicitly run Stap 11: NPM packages installeren
-    [switch]$RunNodeServer,             # Explicitly run Stap 12: Server starten
-    [switch]$RunIndexOpen               # Explicitly run Stap 13: Index openen
+    [switch]$SkipNodeJSInstallation,     # Sla Stap 10: Node.js installatie over
+    [switch]$SkipNpmPackages,            # Sla Stap 11: NPM packages installeren over
+    [switch]$SkipNodeServer,             # Sla Stap 12: Server starten over
+    [switch]$SkipIndexOpen,              # Sla Stap 13: Index openen over
+    [switch]$RunNodeJSInstallation,     # Forceer Stap 10: Node.js installatie
+    [switch]$RunNpmPackages,            # Forceer Stap 11: NPM packages installeren
+    [switch]$RunNodeServer,             # Forceer Stap 12: Server starten
+    [switch]$RunIndexOpen               # Forceer Stap 13: Index openen
 )
 
 # Function to check if running as administrator
