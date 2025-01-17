@@ -1559,8 +1559,8 @@ function Install-NotepadPlusPlus {
     # Check if already installed
     foreach ($exePath in $exePaths) {
         if (Test-Path $exePath) {
-            Write-Host "Notepad++ is al geïnstalleerd" -ForegroundColor Green
-            Write-LogMessage "Notepad++ is al geïnstalleerd"
+            Write-Host "Notepad++ is al geinstalleerd" -ForegroundColor Green
+            Write-LogMessage "Notepad++ is al geinstalleerd"
             return $true
         }
     }
@@ -1577,7 +1577,7 @@ function Install-NotepadPlusPlus {
                     Write-LogMessage "Poging tot installatie via Winget"
                     winget install --id Notepad++.Notepad++ --exact --silent --accept-source-agreements --accept-package-agreements
                     if ($LASTEXITCODE -eq 0) {
-                        Write-Host "Notepad++ succesvol geïnstalleerd via Winget" -ForegroundColor Green
+                        Write-Host "Notepad++ succesvol geinstalleerd via Winget" -ForegroundColor Green
                         Write-LogMessage "Notepad++ installatie succesvol via Winget"
                         return $true
                     }
@@ -1588,54 +1588,22 @@ function Install-NotepadPlusPlus {
                     return $false
                 }
             }
-        },
-        @{
-            Name = "Direct Download"
-            Action = {
-                try {
-                    Write-Host "Proberen te installeren via directe download..." -ForegroundColor Yellow
-                    Write-LogMessage "Poging tot installatie via directe download"
-                    
-                    $tempFile = Join-Path $env:TEMP "npp.exe"
-                    
-                    # Download latest version
-                    $downloadUrl = "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.6/npp.8.6.Installer.x64.exe"
-                    Invoke-WebRequest -Uri $downloadUrl -OutFile $tempFile
-                    
-                    # Install silently
-                    Start-Process -FilePath $tempFile -ArgumentList "/S" -Wait
-                    
-                    # Cleanup
-                    Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-                    
-                    # Verify installation
-                    foreach ($exePath in $exePaths) {
-                        if (Test-Path $exePath) {
-                            Write-Host "Notepad++ succesvol geïnstalleerd via directe download" -ForegroundColor Green
-                            Write-LogMessage "Notepad++ installatie succesvol via directe download"
-                            return $true
-                        }
-                    }
-                    return $false
-                }
-                catch {
-                    Write-LogMessage "Fout bij installatie via directe download: $_"
-                    return $false
-                }
-            }
         }
     )
-
+    
     foreach ($method in $methods) {
+        Write-Host "`nProberen te installeren met $($method.Name)..." -ForegroundColor Yellow
+        Write-LogMessage "Poging tot installatie met $($method.Name)"
+        
         if (& $method.Action) {
+            Write-Host "Notepad++ succesvol geinstalleerd met $($method.Name)" -ForegroundColor Green
+            Write-LogMessage "Notepad++ installatie succesvol met $($method.Name)"
             return $true
         }
-        Write-Host "Installatie via $($method.Name) mislukt, probeer volgende methode..." -ForegroundColor Yellow
-        Write-LogMessage "Installatie via $($method.Name) mislukt"
     }
-
-    Write-Host "Alle installatiemethoden voor Notepad++ zijn mislukt" -ForegroundColor Red
-    Write-LogMessage "Alle installatiemethoden voor Notepad++ zijn mislukt"
+    
+    Write-Host "Notepad++ installatie mislukt" -ForegroundColor Red
+    Write-LogMessage "Notepad++ installatie mislukt"
     return $false
 }
 
@@ -1737,12 +1705,13 @@ try {
     }
 
     # Stap 6b: Notepad++ installatie
-    Write-Host "`nStap 6b: Notepad++ installeren..." -ForegroundColor Yellow
+    Write-Host "`nStap 6b: Notepad++ installeren..." -ForegroundColor Cyan
+    Write-LogMessage "Start Stap 6b: Notepad++ installatie"
     if (-not (Install-NotepadPlusPlus)) {
-        Write-Host "Notepad++ installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
+        Write-Host "Notepad++ installatie mislukt, maar we gaan door..." -ForegroundColor Yellow
         Write-LogMessage "Notepad++ installatie mislukt, script gaat door"
     }
-
+    
     # Stap 7: Winget software installatie
     Write-Host "`nStap 7: Winget software installeren..." -ForegroundColor Yellow
     Install-WingetSoftware
