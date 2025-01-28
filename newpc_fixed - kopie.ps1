@@ -1,18 +1,111 @@
+<#
+.SYNOPSIS
+    Geautomatiseerd installatiescript voor nieuwe Windows PC's in een bedrijfsomgeving.
+
+.DESCRIPTION
+    Dit script automatiseert het installatieproces van nieuwe Windows PC's, inclusief:
+    - Configuratie van energie-instellingen
+    - Netwerk/WiFi configuratie
+    - Windows Updates
+    - Software installatie via Winget
+    - Installatie van specifieke software (Notepad++, Belgian eID, etc.)
+    - Node.js omgeving setup
+    
+    Het script bevat foutafhandeling, logging en meerdere installatiemethoden
+    voor betere betrouwbaarheid.
+
+.PARAMETER SkipWindowsUpdates
+    Sla de Windows Updates installatie over.
+
+.PARAMETER WifiSSID
+    De naam van het WiFi netwerk waarmee verbinding moet worden gemaakt.
+
+.PARAMETER WifiPassword
+    Het wachtwoord voor het WiFi netwerk. Moet worden aangeleverd als SecureString voor veiligheid.
+
+.PARAMETER Verbose
+    Schakel uitgebreide logging in voor gedetailleerde informatie.
+
+.PARAMETER DryRun
+    Voer het script uit zonder daadwerkelijke wijzigingen (test modus).
+
+.PARAMETER SkipNodeJSInstallation
+    Sla de Node.js installatie over.
+
+.PARAMETER SkipNpmPackages
+    Sla de NPM packages installatie over.
+
+.PARAMETER SkipNodeServer
+    Sla het starten van de Node.js server over.
+
+.PARAMETER SkipIndexOpen
+    Sla het openen van het index bestand over.
+
+.PARAMETER RunNodeJSInstallation
+    Forceer de Node.js installatie.
+
+.PARAMETER RunNpmPackages
+    Forceer de NPM packages installatie.
+
+.PARAMETER RunNodeServer
+    Forceer het starten van de Node.js server.
+
+.PARAMETER RunIndexOpen
+    Forceer het openen van het index bestand.
+
+.EXAMPLE
+    # Uitvoeren met standaard instellingen
+    .\newpc_fixed.ps1
+
+.EXAMPLE
+    # Uitvoeren met specifieke WiFi gegevens
+    $wachtwoord = Read-Host -AsSecureString "Voer WiFi wachtwoord in"
+    .\newpc_fixed.ps1 -WifiSSID "BedrijfsWiFi" -WifiPassword $wachtwoord
+
+.EXAMPLE
+    # Uitvoeren zonder Windows Updates
+    .\newpc_fixed.ps1 -SkipWindowsUpdates
+
+.NOTES
+    Versie:         2.0
+    Auteur:         TechStick
+    Aanmaakdatum:   2024-01-17
+    
+    Vereisten:
+    - Windows 10 of hoger
+    - PowerShell 5.1 of hoger
+    - Administratieve rechten
+    
+    Het script zal:
+    1. Energie-instellingen configureren
+    2. Netwerk verbinding opzetten
+    3. Klantnummer opvragen
+    4. Windows Updates installeren (tenzij overgeslagen)
+    5. Winget installeren
+    6. Notepad++ installeren (met fallback methoden)
+    7. Overige software via Winget installeren
+    8. Node.js omgeving opzetten (tenzij overgeslagen)
+
+.LINK
+    https://github.com/yourusername/yourrepository
+
+#>
+
 # Script parameters
 param(
     [switch]$SkipWindowsUpdates,
     [string]$WifiSSID,
-    [string]$WifiPassword,
+    [SecureString]$WifiPassword,
     [switch]$Verbose,
     [switch]$DryRun,
-    [switch]$SkipNodeJSInstallation,     # Skip Stap 10: Node.js installatie
-    [switch]$SkipNpmPackages,            # Skip Stap 11: NPM packages installeren
-    [switch]$SkipNodeServer,             # Skip Stap 12: Server starten
-    [switch]$SkipIndexOpen,              # Skip Stap 13: Index openen
-    [switch]$RunNodeJSInstallation,     # Explicitly run Stap 10: Node.js installatie
-    [switch]$RunNpmPackages,            # Explicitly run Stap 11: NPM packages installeren
-    [switch]$RunNodeServer,             # Explicitly run Stap 12: Server starten
-    [switch]$RunIndexOpen               # Explicitly run Stap 13: Index openen
+    [switch]$SkipNodeJSInstallation,     # Sla Stap 10: Node.js installatie over
+    [switch]$SkipNpmPackages,            # Sla Stap 11: NPM packages installeren over
+    [switch]$SkipNodeServer,             # Sla Stap 12: Server starten over
+    [switch]$SkipIndexOpen,              # Sla Stap 13: Index openen over
+    [switch]$RunNodeJSInstallation,     # Forceer Stap 10: Node.js installatie
+    [switch]$RunNpmPackages,            # Forceer Stap 11: NPM packages installeren
+    [switch]$RunNodeServer,             # Forceer Stap 12: Server starten
+    [switch]$RunIndexOpen               # Forceer Stap 13: Index openen
 )
 
 # Function to check if running as administrator
@@ -48,7 +141,24 @@ if ($PSVersionTable.PSVersion -lt $minimumPSVersion) {
 # Dependency check function
 function Test-ScriptDependencies {
     $dependencies = @{
-        'Winget' = { Get-Command winget -ErrorAction SilentlyContinue }
+        'Winget' = { 
+            # First check if winget is already available
+            if (Get-Command winget -ErrorAction SilentlyContinue) {
+                return $true
+            }
+            
+            # If not found, check Windows version
+            $osInfo = Get-WmiObject -Class Win32_OperatingSystem
+            $windowsVersion = [System.Version]($osInfo.Version)
+            
+            # Windows 11 or Windows 10 1809 or later should have winget available
+            if ($windowsVersion.Major -eq 10 -and $windowsVersion.Build -ge 17763) {
+                # On supported Windows versions, winget should be available through Microsoft Store
+                return $false
+            }
+            
+            return $false
+        }
         'PSWindowsUpdate' = { Get-Module -ListAvailable -Name PSWindowsUpdate }
         'NetSh' = { Get-Command netsh -ErrorAction SilentlyContinue }
     }
@@ -221,7 +331,7 @@ function Send-TextbeeSMS {
         } | ConvertTo-Json
 
         # Send request
-        $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -ContentType 'application/json'
+        $null = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -ContentType 'application/json'
         
         Write-Host "SMS notificatie succesvol verzonden" -ForegroundColor Green
         Write-LogMessage "SMS notificatie succesvol verzonden naar $PhoneNumber"
@@ -351,7 +461,7 @@ function Connect-Network {
         [Parameter(Mandatory=$false)]
         [string]$WifiSSID,
         [Parameter(Mandatory=$false)]
-        [string]$WifiPassword
+        [SecureString]$WifiPassword
     )
 
     Write-Host "`nNetwerk verbinding controleren..." -ForegroundColor Yellow
@@ -399,7 +509,6 @@ function Connect-Network {
         if (-not $WifiPassword) {
             Write-Host "Voer WiFi wachtwoord in:" -ForegroundColor Cyan
             $WifiPassword = Read-Host -AsSecureString
-            $WifiPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($WifiPassword))
         }
     }
 
@@ -407,9 +516,14 @@ function Connect-Network {
     Write-LogMessage "Poging tot verbinden met WiFi netwerk: $WifiSSID"
 
     try {
-        # Create WiFi profile XML
-        $hexSSID = [System.BitConverter]::ToString([System.Text.Encoding]::UTF8.GetBytes($WifiSSID)).Replace("-","")
-        $profileXml = @"
+        # Convert SecureString to plain text only when needed (within the function)
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($WifiPassword)
+        $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        
+        try {
+            # Create WiFi profile XML
+            $hexSSID = [System.BitConverter]::ToString([System.Text.Encoding]::UTF8.GetBytes($WifiSSID)).Replace("-","")
+            $profileXml = @"
 <?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
     <name>$WifiSSID</name>
@@ -431,47 +545,45 @@ function Connect-Network {
             <sharedKey>
                 <keyType>passPhrase</keyType>
                 <protected>false</protected>
-                <keyMaterial>$WifiPassword</keyMaterial>
+                <keyMaterial>$plainPassword</keyMaterial>
             </sharedKey>
         </security>
     </MSM>
 </WLANProfile>
 "@
-        # Add the profile
-        $profilePath = "$env:TEMP\WiFiProfile.xml"
-        $profileXml | Set-Content $profilePath -Encoding UTF8
-        $addResult = netsh wlan add profile filename="$profilePath"
-        
-        # Connect to network
-        $connectResult = netsh wlan connect name="$WifiSSID"
-        
-        # Wait for connection
-        $timeout = 30
-        $connected = $false
-        $startTime = Get-Date
-        
-        while (-not $connected -and ((Get-Date) - $startTime).TotalSeconds -lt $timeout) {
-            Start-Sleep -Seconds 2
-            $testConnection = Test-FastNetworkConnection
-            if ($testConnection) {
-                $connected = $true
-                break
+            # Add the profile
+            $profilePath = "$env:TEMP\WiFiProfile.xml"
+            $profileXml | Set-Content $profilePath -Encoding UTF8
+            $null = netsh wlan add profile filename="$profilePath"
+            
+            # Connect to network
+            netsh wlan connect name="$WifiSSID"
+            Start-Sleep -Seconds 5  # Wait for connection
+            
+            # Cleanup
+            if (Test-Path $profilePath) {
+                Remove-Item $profilePath -Force
+            }
+            
+            $hasConnection = Test-FastNetworkConnection
+            if ($hasConnection) {
+                Write-Host "Succesvol verbonden met $WifiSSID" -ForegroundColor Green
+                Write-LogMessage "Succesvol verbonden met WiFi netwerk: $WifiSSID"
+                return $true
+            } else {
+                Write-Host "Kon niet verbinden met $WifiSSID binnen 5 seconden" -ForegroundColor Yellow
+                Write-LogMessage "Timeout bij verbinden met WiFi netwerk: $WifiSSID"
+                return $false
             }
         }
-        
-        # Cleanup
-        if (Test-Path $profilePath) {
-            Remove-Item $profilePath -Force
-        }
-        
-        if ($connected) {
-            Write-Host "Succesvol verbonden met $WifiSSID" -ForegroundColor Green
-            Write-LogMessage "Succesvol verbonden met WiFi netwerk: $WifiSSID"
-            return $true
-        } else {
-            Write-Host "Kon niet verbinden met $WifiSSID binnen $timeout seconden" -ForegroundColor Yellow
-            Write-LogMessage "Timeout bij verbinden met WiFi netwerk: $WifiSSID"
-            return $false
+        finally {
+            # Clean up the plain text password from memory
+            if ($plainPassword) {
+                $plainPassword = $null
+            }
+            if ($BSTR) {
+                [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+            }
         }
     }
     catch {
@@ -482,7 +594,7 @@ function Connect-Network {
 }
 
 # Function to click buttons in windows
-function Click-Button {
+function Invoke-Button {
     param (
         [string]$WindowTitle,
         [string]$ButtonText
@@ -523,6 +635,16 @@ function Install-WingetSoftware {
         
         Show-Progress -Activity "Winget" -Status "Voorbereiden..." -PercentComplete 10
         
+        # Verify winget is working
+        try {
+            $wingetVersion = winget --version
+            Write-Host "Winget versie: $wingetVersion" -ForegroundColor Cyan
+            Write-LogMessage "Winget versie: $wingetVersion"
+        }
+        catch {
+            throw "Winget is niet correct geïnstalleerd. Probeer het script opnieuw uit te voeren."
+        }
+        
         # Get all available upgrades at once
         Write-Host "Beschikbare updates controleren..." -ForegroundColor Cyan
         $availableUpdates = winget upgrade --accept-source-agreements | Out-String
@@ -542,12 +664,20 @@ function Install-WingetSoftware {
                     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
                     "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
                 )
+                ExePaths = @(
+                    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+                    "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+                )
             },
             @{
                 Id = "7zip.7zip"
                 RegPaths = @(
                     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{23170F69-40C1-2702-2102-000001000000}",
                     "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{23170F69-40C1-2702-2102-000001000000}"
+                )
+                ExePaths = @(
+                    "$env:ProgramFiles\7-Zip\7z.exe",
+                    "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
                 )
             },
             @{
@@ -575,13 +705,6 @@ function Install-WingetSoftware {
                 RegPaths = @(
                     "HKLM:\SOFTWARE\Belgian eID Viewer",
                     "HKLM:\SOFTWARE\Wow6432Node\Belgian eID Viewer"
-                )
-            },
-            @{
-                Id = "Notepad++.Notepad++"
-                RegPaths = @(
-                    "HKLM:\SOFTWARE\Notepad++",
-                    "HKLM:\SOFTWARE\Wow6432Node\Notepad++"
                 )
             },
             @{
@@ -628,7 +751,7 @@ function Install-WingetSoftware {
             
             # Double check with winget if not found in registry/files
             if (-not $isInstalled) {
-                $wingetCheck = winget list --id $software.Id --exact
+                $null = winget list --id $software.Id --exact
                 $isInstalled = $LASTEXITCODE -eq 0
             }
             
@@ -638,14 +761,37 @@ function Install-WingetSoftware {
                     Write-Host "$($software.Id) update beschikbaar. Bijwerken..." -ForegroundColor Yellow
                     Write-LogMessage "$($software.Id) update beschikbaar, start upgrade"
                     
-                    if ($software.WingetArgs) {
-                        winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
-                    } else {
-                        winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                    $retryCount = 0
+                    $maxRetries = if ($software.RetryCount) { $software.RetryCount } else { 1 }
+                    $success = $false
+                    
+                    while (-not $success -and $retryCount -lt $maxRetries) {
+                        if ($retryCount -gt 0) {
+                            Write-Host "Poging $($retryCount + 1) van $maxRetries..." -ForegroundColor Yellow
+                        }
+                        
+                        if ($software.WingetArgs) {
+                            winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
+                        } else {
+                            winget upgrade --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                        }
+                        
+                        if ($LASTEXITCODE -eq 0) {
+                            $success = $true
+                            Write-Host "$($software.Id) is bijgewerkt naar de laatste versie" -ForegroundColor Green
+                            Write-LogMessage "$($software.Id) upgrade succesvol"
+                        } else {
+                            $retryCount++
+                            if ($retryCount -lt $maxRetries) {
+                                Write-Host "Update mislukt, opnieuw proberen..." -ForegroundColor Yellow
+                                Start-Sleep -Seconds 2
+                            }
+                        }
                     }
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Host "$($software.Id) is bijgewerkt naar de laatste versie" -ForegroundColor Green
-                        Write-LogMessage "$($software.Id) upgrade succesvol"
+                    
+                    if (-not $success) {
+                        Write-Host "Waarschuwing: $($software.Id) update mislukt na $maxRetries pogingen" -ForegroundColor Yellow
+                        Write-LogMessage "$($software.Id) update mislukt na $maxRetries pogingen"
                     }
                 } else {
                     Write-Host "$($software.Id) is al geinstalleerd en up-to-date" -ForegroundColor Green
@@ -654,24 +800,64 @@ function Install-WingetSoftware {
             } else {
                 # Install if not present
                 Write-Host "$($software.Id) wordt geinstalleerd..." -ForegroundColor Yellow
-                if ($software.WingetArgs) {
-                    winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
-                } else {
-                    winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                
+                $retryCount = 0
+                $maxRetries = if ($software.RetryCount) { $software.RetryCount } else { 1 }
+                $success = $false
+                
+                while (-not $success -and $retryCount -lt $maxRetries) {
+                    if ($retryCount -gt 0) {
+                        Write-Host "Poging $($retryCount + 1) van $maxRetries..." -ForegroundColor Yellow
+                    }
+                    
+                    if ($software.WingetArgs) {
+                        winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
+                    } else {
+                        winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                    }
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        $success = $true
+                        Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
+                        Write-LogMessage "$($software.Id) installatie succesvol"
+                        
+                        # Extra verification for new installations
+                        Start-Sleep -Seconds 2  # Wait for installation to complete
+                        if ($software.ExePaths) {
+                            $exeExists = $false
+                            foreach ($exePath in $software.ExePaths) {
+                                if (Test-Path $exePath) {
+                                    $exeExists = $true
+                                    break
+                                }
+                            }
+                            if (-not $exeExists) {
+                                Write-Host "Waarschuwing: $($software.Id) executable niet gevonden na installatie" -ForegroundColor Yellow
+                                Write-LogMessage "$($software.Id) executable niet gevonden na installatie"
+                                $success = $false  # Mark as failed to trigger retry
+                            }
+                        }
+                    }
+                    
+                    if (-not $success) {
+                        $retryCount++
+                        if ($retryCount -lt $maxRetries) {
+                            Write-Host "Installatie mislukt, opnieuw proberen..." -ForegroundColor Yellow
+                            Start-Sleep -Seconds 2
+                        }
+                    }
                 }
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
-                    Write-LogMessage "$($software.Id) installatie succesvol"
-                } else {
-                    Write-Host "Waarschuwing: $($software.Id) installatie mislukt" -ForegroundColor Yellow
-                    Write-LogMessage "$($software.Id) installatie mislukt"
+                
+                if (-not $success) {
+                    Write-Host "Waarschuwing: $($software.Id) installatie mislukt na $maxRetries pogingen" -ForegroundColor Yellow
+                    Write-LogMessage "$($software.Id) installatie mislukt na $maxRetries pogingen"
                 }
             }
         }
         
         Show-Progress -Activity "Software Installatie" -Status "Voltooid" -PercentComplete 100
         Write-Host "`nAlle software installaties voltooid" -ForegroundColor Green
-        Write-LogMessage "Alle software installaties voltooid"
+        Write-LogMessage "Software installaties voltooid"
         return $true
     }
     catch {
@@ -796,8 +982,8 @@ function Install-WindowsUpdates {
         $failedJobs = $jobs | Where-Object { $_.State -eq 'Failed' }
         if ($failedJobs) {
             foreach ($job in $failedJobs) {
-                $error = Receive-Job -Job $job -ErrorAction SilentlyContinue
-                Write-LogMessage "Update taak mislukt: $error"
+                $jobError = Receive-Job -Job $job -ErrorAction SilentlyContinue
+                Write-LogMessage "Update taak mislukt: $jobError"
             }
             Write-Host "Sommige updates zijn mogelijk niet geinstalleerd" -ForegroundColor Yellow
         }
@@ -983,7 +1169,6 @@ function Start-NodeServer {
     }
 }
 
-
 # Function to optimize power settings
 function Set-OptimalPowerSettings {
     try {
@@ -1071,6 +1256,44 @@ function Install-Winget {
         # Start progress
         Show-Progress -Activity "Winget Installatie" -Status "Voorbereiden..." -PercentComplete 0
 
+        # Install prerequisites
+        Show-Progress -Activity "Winget Installatie" -Status "Controleren vereisten..." -PercentComplete 10
+        Write-Host "`nControleren en installeren van vereiste componenten..." -ForegroundColor Cyan
+        Write-LogMessage "Controleren vereiste componenten"
+
+        # Install VCLibs
+        try {
+            $vcLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+            $vcLibsPath = "$env:TEMP\Microsoft.VCLibs.x64.14.00.Desktop.appx"
+            Write-Host "Downloaden VCLibs..." -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $vcLibsUrl -OutFile $vcLibsPath
+            Add-AppxPackage -Path $vcLibsPath -ErrorAction SilentlyContinue
+            Remove-Item $vcLibsPath -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Host "Waarschuwing: VCLibs installatie overgeslagen: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-LogMessage "VCLibs installatie overgeslagen: $($_.Exception.Message)"
+        }
+
+        # Install UI.Xaml
+        try {
+            $xamlUrl = "https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.7.3"
+            $xamlPath = "$env:TEMP\Microsoft.UI.Xaml.2.7.3.zip"
+            $xamlExtractPath = "$env:TEMP\Microsoft.UI.Xaml"
+            
+            Write-Host "Downloaden UI.Xaml..." -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $xamlUrl -OutFile $xamlPath
+            Expand-Archive -Path $xamlPath -DestinationPath $xamlExtractPath -Force
+            Add-AppxPackage -Path "$xamlExtractPath\tools\AppX\x64\Release\Microsoft.UI.Xaml.2.7.appx" -ErrorAction SilentlyContinue
+            
+            Remove-Item $xamlPath -ErrorAction SilentlyContinue
+            Remove-Item $xamlExtractPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Host "Waarschuwing: UI.Xaml installatie overgeslagen: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-LogMessage "UI.Xaml installatie overgeslagen: $($_.Exception.Message)"
+        }
+
         # Controleer of winget al is geinstalleerd
         $hasWinget = Get-AppxPackage -Name Microsoft.DesktopAppInstaller
 
@@ -1086,20 +1309,56 @@ function Install-Winget {
         Show-Progress -Activity "Winget Installatie" -Status "Downloaden..." -PercentComplete 40
         Write-Host "`nNieuwste Winget installer downloaden..." -ForegroundColor Cyan
         Write-LogMessage "Downloaden Winget installer"
-        $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
         
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($wingetUrl, "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle")
+        $wingetPath = "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+        $wingetUrls = @(
+            "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle",
+            "https://aka.ms/getwinget"
+        )
+
+        $downloadSuccess = $false
+        foreach ($url in $wingetUrls) {
+            try {
+                Write-Host "Proberen te downloaden van: $url" -ForegroundColor Cyan
+                Invoke-WebRequest -Uri $url -OutFile $wingetPath
+                $downloadSuccess = $true
+                break
+            }
+            catch {
+                Write-Host "Download mislukt van $url : $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-LogMessage "Winget download mislukt van $url : $($_.Exception.Message)"
+                continue
+            }
+        }
+
+        if (-not $downloadSuccess) {
+            throw "Kon Winget installer niet downloaden van alle beschikbare bronnen"
+        }
 
         Show-Progress -Activity "Winget Installatie" -Status "Installeren..." -PercentComplete 60
         Write-Host "`nWinget installeren..." -ForegroundColor Cyan
         Write-LogMessage "Installeren Winget"
-        Add-AppxPackage "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+        
+        try {
+            Add-AppxPackage -Path $wingetPath -ErrorAction Stop
+        }
+        catch {
+            Write-Host "Eerste installatie poging mislukt, proberen met alternatieve methode..." -ForegroundColor Yellow
+            Write-LogMessage "Eerste installatie poging mislukt, proberen alternatief"
+            
+            # Try alternative installation method
+            try {
+                Start-Process "PowerShell" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command Add-AppxPackage -Path `"$wingetPath`"" -Wait -NoNewWindow
+            }
+            catch {
+                throw "Beide installatie methoden zijn mislukt: $($_.Exception.Message)"
+            }
+        }
 
         # Ruim het installatiebestand op
         Show-Progress -Activity "Winget Installatie" -Status "Opruimen..." -PercentComplete 80
-        if (Test-Path "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle") {
-            Remove-Item "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+        if (Test-Path $wingetPath) {
+            Remove-Item $wingetPath -ErrorAction SilentlyContinue
         }
 
         # Ververs omgevingsvariabelen
@@ -1109,11 +1368,28 @@ function Install-Winget {
         Show-Progress -Activity "Winget Installatie" -Status "Verificatie..." -PercentComplete 90
         Write-Host "`nWinget installatie verifieren..." -ForegroundColor Cyan
         Write-LogMessage "Verifieren Winget installatie"
-        $wingetVersion = winget --version
+        
+        $retryCount = 0
+        $maxRetries = 3
+        $wingetVersion = $null
+        
+        while ($retryCount -lt $maxRetries) {
+            try {
+                $wingetVersion = winget --version
+                break
+            }
+            catch {
+                $retryCount++
+                if ($retryCount -eq $maxRetries) {
+                    throw "Kon Winget versie niet verifieren na $maxRetries pogingen"
+                }
+                Write-Host "Wachten op Winget initialisatie... (poging $retryCount van $maxRetries)" -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+            }
+        }
         
         # Accept Microsoft Store agreements
         Show-Progress -Activity "Winget Installatie" -Status "Configureren..." -PercentComplete 95
-        Write-Host "`nMicrosoft Store voorwaarden accepteren..." -ForegroundColor Yellow
         winget settings --enable LocalManifestFiles
         winget settings --enable MSStore
         winget source reset --force msstore
@@ -1383,6 +1659,63 @@ function Get-ClientNumber {
     return $null
 }
 
+# Function to install Notepad++
+function Install-NotepadPlusPlus {
+    $exePaths = @(
+        "$env:ProgramFiles\Notepad++\notepad++.exe",
+        "${env:ProgramFiles(x86)}\Notepad++\notepad++.exe"
+    )
+    
+    # Check if already installed
+    foreach ($exePath in $exePaths) {
+        if (Test-Path $exePath) {
+            Write-Host "Notepad++ is al geinstalleerd" -ForegroundColor Green
+            Write-LogMessage "Notepad++ is al geinstalleerd"
+            return $true
+        }
+    }
+
+    Write-Host "Notepad++ installeren..." -ForegroundColor Yellow
+    Write-LogMessage "Start Notepad++ installatie"
+
+    $methods = @(
+        @{
+            Name = "Winget"
+            Action = {
+                try {
+                    Write-Host "Proberen te installeren via Winget..." -ForegroundColor Yellow
+                    Write-LogMessage "Poging tot installatie via Winget"
+                    winget install --id Notepad++.Notepad++ --exact --silent --accept-source-agreements --accept-package-agreements
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "Notepad++ succesvol geinstalleerd via Winget" -ForegroundColor Green
+                        Write-LogMessage "Notepad++ installatie succesvol via Winget"
+                        return $true
+                    }
+                    return $false
+                }
+                catch {
+                    Write-LogMessage "Fout bij installatie via Winget: $_"
+                    return $false
+                }
+            }
+        }
+    )
+    
+    foreach ($method in $methods) {
+        Write-Host "`nProberen te installeren met $($method.Name)..." -ForegroundColor Yellow
+        Write-LogMessage "Poging tot installatie met $($method.Name)"
+        
+        if (& $method.Action) {
+            Write-Host "Notepad++ succesvol geinstalleerd met $($method.Name)" -ForegroundColor Green
+            Write-LogMessage "Notepad++ installatie succesvol met $($method.Name)"
+            return $true
+        }
+    }
+    
+    Write-Host "Notepad++ installatie mislukt" -ForegroundColor Red
+    Write-LogMessage "Notepad++ installatie mislukt"
+    return $false
+}
 
 Add-Type @"
     using System;
@@ -1475,12 +1808,26 @@ try {
     Install-ExtraSoftwarePack
 
     # Stap 6: Winget installatie
-    Write-Host "`nStap 6: Winget installeren..." -ForegroundColor Yellow
-    if (-not (Install-Winget)) {
-        Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "Winget installatie mislukt, script gaat door"
+    Write-Host "`nStap 6: Winget controleren..." -ForegroundColor Yellow
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Host "Winget is reeds geinstalleerd, ga door naar volgende stap..." -ForegroundColor Green
+        Write-LogMessage "Winget is reeds geinstalleerd"
+    } else {
+        Write-Host "Winget is niet gevonden, start installatie..." -ForegroundColor Yellow
+        if (-not (Install-Winget)) {
+            Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
+            Write-LogMessage "Winget installatie mislukt, script gaat door"
+        }
     }
 
+    # Stap 6b: Notepad++ installatie
+    Write-Host "`nStap 6b: Notepad++ installeren..." -ForegroundColor Cyan
+    Write-LogMessage "Start Stap 6b: Notepad++ installatie"
+    if (-not (Install-NotepadPlusPlus)) {
+        Write-Host "Notepad++ installatie mislukt, maar we gaan door..." -ForegroundColor Yellow
+        Write-LogMessage "Notepad++ installatie mislukt, script gaat door"
+    }
+    
     # Stap 7: Winget software installatie
     Write-Host "`nStap 7: Winget software installeren..." -ForegroundColor Yellow
     Install-WingetSoftware
@@ -1523,7 +1870,7 @@ try {
         
         # Double check with winget if not found in registry/files
         if (-not $isInstalled) {
-            $wingetCheck = winget list --id $software.Id --exact
+            $null = winget list --id $software.Id --exact
             $isInstalled = $LASTEXITCODE -eq 0
         }
         
