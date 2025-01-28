@@ -141,7 +141,24 @@ if ($PSVersionTable.PSVersion -lt $minimumPSVersion) {
 # Dependency check function
 function Test-ScriptDependencies {
     $dependencies = @{
-        'Winget' = { Get-Command winget -ErrorAction SilentlyContinue }
+        'Winget' = { 
+            # First check if winget is already available
+            if (Get-Command winget -ErrorAction SilentlyContinue) {
+                return $true
+            }
+            
+            # If not found, check Windows version
+            $osInfo = Get-WmiObject -Class Win32_OperatingSystem
+            $windowsVersion = [System.Version]($osInfo.Version)
+            
+            # Windows 11 or Windows 10 1809 or later should have winget available
+            if ($windowsVersion.Major -eq 10 -and $windowsVersion.Build -ge 17763) {
+                # On supported Windows versions, winget should be available through Microsoft Store
+                return $false
+            }
+            
+            return $false
+        }
         'PSWindowsUpdate' = { Get-Module -ListAvailable -Name PSWindowsUpdate }
         'NetSh' = { Get-Command netsh -ErrorAction SilentlyContinue }
     }
@@ -1791,10 +1808,16 @@ try {
     Install-ExtraSoftwarePack
 
     # Stap 6: Winget installatie
-    Write-Host "`nStap 6: Winget installeren..." -ForegroundColor Yellow
-    if (-not (Install-Winget)) {
-        Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
-        Write-LogMessage "Winget installatie mislukt, script gaat door"
+    Write-Host "`nStap 6: Winget controleren..." -ForegroundColor Yellow
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Host "Winget is reeds geinstalleerd, ga door naar volgende stap..." -ForegroundColor Green
+        Write-LogMessage "Winget is reeds geinstalleerd"
+    } else {
+        Write-Host "Winget is niet gevonden, start installatie..." -ForegroundColor Yellow
+        if (-not (Install-Winget)) {
+            Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
+            Write-LogMessage "Winget installatie mislukt, script gaat door"
+        }
     }
 
     # Stap 6b: Notepad++ installatie

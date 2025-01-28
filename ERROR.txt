@@ -1,0 +1,7 @@
+Bestaande Winget installatie verwijderen...
+[2025-01-17 09:41:56] Verwijderen bestaande Winget installatie
+
+Winget installatie mislukt: Deployment failed with HRESULT: 0x80073CFA, Verwijderen is mislukt. Neem contact op met de softwareleverancier. (Uitzondering van HRESULT: 0x80073CFA)
+error 0x80070032: AppX Deployment Remove operation on package Microsoft.DesktopAppInstaller_1.21.10121.0_x64__8wekyb3d8bbwe from: C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_1.21.10121.0_x64__8wekyb3d8bbwe failed. This app is part of Windows and cannot be uninstalled on a per-user basis. An administrator can attempt to remove the app from the computer using Turn Windows Features on or off. However, it may not be possible to uninstall the app.
+
+NOTE: For additional information, look for [ActivityId] 71fb88b6-68bb-0000-5bd3-fc71bb68db01 in the Event Log or use the command line Get-AppPackageLog -ActivityID 71fb88b6-68bb-0000-5bd3-fc71bb68db01
