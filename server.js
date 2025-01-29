@@ -82,7 +82,7 @@ app.post('/send-pdf', upload.single('pdf'), async (req, res) => {
             },
             to: email,
             subject: `Computer Gegevens - Klantnummer ${clientNumber}`,
-            text: `Beste ${clientName},\n\nHierbij vindt u uw computer gegevens in de bijlage.\n\nMet vriendelijke groeten,\nMusiclover Team`,
+            text: `Beste ${clientName},\n\nHierbij vindt u uw computer gegevens in de bijlage.\n\nMet vriendelijke groeten,\nMusic Lover Team`,
             html: `
                 <!DOCTYPE html>
                 <html>
@@ -160,7 +160,7 @@ app.post('/send-pdf', upload.single('pdf'), async (req, res) => {
                         <div class="content">
                             <p>Beste ${clientName},</p>
                             
-                            <p>Bedankt voor uw vertrouwen in Musiclover. In de bijlage vindt u het document met uw computer gegevens.</p>
+                            <p>Bedankt voor uw vertrouwen in Music Lover. In de bijlage vindt u het document met uw computer gegevens.</p>
                             
                             <div class="info">
                                 <strong>Details:</strong><br>
@@ -187,7 +187,7 @@ app.post('/send-pdf', upload.single('pdf'), async (req, res) => {
                                 T: <a href="tel:+3237756831" style="color: #666666; text-decoration: none;">03 775 68 31</a><br>
                                 BTW: BE 0418615970
                             </div>
-                            <p>&copy; ${new Date().getFullYear()} Musiclover. Alle rechten voorbehouden.</p>
+                            <p>&copy; ${new Date().getFullYear()} Music Lover. Alle rechten voorbehouden.</p>
                         </div>
                     </div>
                 </body>

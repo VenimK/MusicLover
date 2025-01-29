@@ -6,6 +6,7 @@
     <title>Nieuwe Computer Gegevens Template</title>
     <!-- Add jsPDF library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- Add Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <!-- Add Google Font -->
@@ -360,10 +361,164 @@
                 100% { transform: translateX(100%); }
             }
         }
+
+        /* Enhanced Loading Indicators */
+        .loading-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-content {
+            background: var(--container-bg);
+            padding: 2rem;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .loading-text {
+            color: var(--text-color);
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        /* Spinner Animation */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            margin: 0 auto;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Progress Dots */
+        .progress-dots {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(0.5); opacity: 0.5; }
+            50% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            width: 200px;
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 1rem auto;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary-color);
+            animation: fill 2s ease-in-out infinite;
+            transform-origin: left;
+        }
+
+        @keyframes fill {
+            0% { transform: scaleX(0); }
+            50% { transform: scaleX(0.5); }
+            100% { transform: scaleX(1); }
+        }
+
+        /* Success Animation */
+        .success-checkmark {
+            display: none;
+            width: 40px;
+            height: 40px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .checkmark {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 3;
+            stroke: var(--success-color);
+            stroke-miterlimit: 10;
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        @keyframes stroke {
+            100% { stroke-dashoffset: 0; }
+        }
+
+        /* Mobile-specific loading styles */
+        @media (max-width: 768px) {
+            .loading-content {
+                padding: 1.5rem;
+                margin: 1rem;
+                border-radius: 12px;
+            }
+
+            .loading-text {
+                font-size: 0.875rem;
+            }
+
+            .progress-bar {
+                width: 150px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="loading" style="display: none;"></div>
+    <div class="loading-container">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <div class="progress-dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-bar-fill"></div>
+            </div>
+            <div class="success-checkmark">
+                <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                    <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
+                    <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                </svg>
+            </div>
+            <div class="loading-text">PDF wordt gegenereerd...</div>
+        </div>
+    </div>
+
     <div style="width: 100%; max-width: 800px; margin: 0 auto;">
         <div class="banner-container">
             <img src="https://raw.githubusercontent.com/VenimK/MusicLover/main/BANNER.jpg" 
@@ -381,7 +536,7 @@
                     <h2><i class="fas fa-user"></i> Klant Informatie</h2>
                     <div class="input-group">
                         <label for="client-number">Klantnummer</label>
-                        <input type="text" id="client-number" name="client-number" placeholder="Uw klantnummer" required>
+                        <input type="text" id="client-number" name="client-number" placeholder="Uw klantnummer">
                     </div>
                     <div class="input-group">
                         <label for="client-name">Naam</label>
@@ -389,16 +544,20 @@
                     </div>
                     <div class="input-group">
                         <label for="client-phone">Telefoonnummer</label>
-                        <input type="tel" id="client-phone" name="client-phone" placeholder="0470 12 34 56" required>
+                        <input type="tel" id="client-phone" name="client-phone" placeholder="0470 12 34 56">
+                    </div>
+                    <div class="input-group">
+                        <label for="client-address">Adres</label>
+                        <input type="text" id="client-address" name="client-address" placeholder="Straat en nummer">
                     </div>
                     <div class="postal-city-grid">
                         <div class="input-group">
                             <label for="client-postal">Postcode</label>
-                            <input type="text" id="client-postal" name="client-postal" placeholder="1000" required pattern="[0-9]{4}" inputmode="numeric">
+                            <input type="text" id="client-postal" name="client-postal" placeholder="1000" pattern="[0-9]{4}" inputmode="numeric">
                         </div>
                         <div class="input-group">
                             <label for="client-city">Gemeente</label>
-                            <input type="text" id="client-city" name="client-city" placeholder="Gemeente" required>
+                            <input type="text" id="client-city" name="client-city" placeholder="Gemeente">
                         </div>
                     </div>
                     <div class="input-group">
@@ -407,7 +566,7 @@
                     </div>
                     <div class="input-group">
                         <label for="client-serial">Serienummer PC</label>
-                        <input type="text" id="client-serial" name="client-serial" required>
+                        <input type="text" id="client-serial" name="client-serial">
                     </div>
                 </div>
 
@@ -416,18 +575,18 @@
                     <h2><i class="fab fa-windows"></i> Windows/Microsoft Account</h2>
                     <div class="input-group">
                         <label for="microsoft-email">Microsoft E-mailadres</label>
-                        <input type="email" id="microsoft-email" name="microsoft-email" placeholder="uw@outlook.com" required>
+                        <input type="email" id="microsoft-email" name="microsoft-email" placeholder="uw@outlook.com">
                     </div>
                     <div class="input-group">
                         <label for="microsoft-password">Microsoft Wachtwoord</label>
-                        <input type="password" id="microsoft-password" name="microsoft-password" required>
+                        <input type="password" id="microsoft-password" name="microsoft-password">
                     </div>
                     <div class="reset-links">
-                        <a href="https://account.live.com/ResetPassword.aspx" target="_blank">Wachtwoord vergeten? Klik hier voor Microsoft</a></small>
+                        <a href="https://account.live.com/ResetPassword.aspx" target="_blank">Wachtwoord vergeten? Klik hier voor Microsoft</a>
                     </div>
                 </div>
 
-                <!-- Gmail -->
+                <!-- Gmail Account -->
                 <div class="form-group">
                     <h2><i class="fas fa-envelope"></i> Gmail Account</h2>
                     <div class="input-group">
@@ -443,7 +602,7 @@
                     </div>
                 </div>
 
-                <!-- Telenet -->
+                <!-- Telenet Account -->
                 <div class="form-group">
                     <h2><i class="fas fa-wifi"></i> Telenet Account</h2>
                     <div class="input-group">
@@ -455,12 +614,12 @@
                         <input type="password" id="telenet-password" name="telenet-password">
                     </div>
                     <div class="reset-links">
-                        <a href="https://www2.telenet.be/nl/profiel/wachtwoord-vergeten?/#/login=dzsdsdsd/loginredirecturl=https%253A%252F%252Fwww2.telenet.be%252Fmytelenet" target="_blank">Wachtwoord vergeten? Klik hier voor Telenet</a>
+                        <a href="https://www2.telenet.be/nl/profiel/wachtwoord-vergeten" target="_blank">Wachtwoord vergeten? Klik hier voor Telenet</a>
                     </div>
                 </div>
 
-                <!-- Proximus -->
-                <div class="form-group" style="--animation-order: 3;">
+                <!-- Proximus Account -->
+                <div class="form-group">
                     <h2><i class="fas fa-wifi"></i> Proximus Account</h2>
                     <div class="input-group">
                         <label for="proximus-email">Proximus E-mailadres</label>
@@ -471,7 +630,7 @@
                         <input type="password" id="proximus-password" name="proximus-password">
                     </div>
                     <div class="reset-links">
-                        <a href="https://www.proximus.be/nl/customs/spa/apps/mailbox/#/recoverpassword?returnAddress=https:%2F%2Fwww.proximus.be%2Flogin%2Fnl%2Fwebmail.html&guiLang=nl" target="_blank">Wachtwoord vergeten? Klik hier voor Proximus</a>
+                        <a href="https://www.proximus.be/nl/customs/spa/apps/mailbox/#/recoverpassword" target="_blank">Wachtwoord vergeten? Klik hier voor Proximus</a>
                     </div>
                 </div>
 
@@ -487,7 +646,7 @@
                         <input type="password" id="norton-password" name="norton-password">
                     </div>
                     <div class="reset-links">
-                        <a href="https://login.norton.com/sso/idp/recovery" target="_blank">Wachtwoord vergeten? Klik hier voor Norton</a></small>
+                        <a href="https://login.norton.com/sso/idp/recovery" target="_blank">Wachtwoord vergeten? Klik hier voor Norton</a>
                     </div>
                 </div>
 
@@ -534,182 +693,260 @@
             }
         });
 
-        function generatePDF(data) {
-            const doc = new jsPDF();
-            let yPosition = 10;
+        async function generatePDF(data) {
+            return new Promise((resolve, reject) => {
+                try {
+                    // Create new jsPDF instance with A4 size
+                    const doc = new jsPDF({
+                        orientation: 'portrait',
+                        unit: 'mm',
+                        format: 'a4'
+                    });
 
-            // Add banner image
-            doc.addImage(document.querySelector('.banner').src, 'JPEG', 15, yPosition, 180, 40);
-            yPosition += 50;
+                    let y = 20; // Starting y position
+                    const margin = 20; // Left margin
+                    const lineHeight = 10; // Height between lines
 
-            // Function to check and add new page if needed
-            function checkPageBreak(requiredSpace) {
-                if (yPosition + requiredSpace > 280) {  // 280 is close to the bottom of the page
-                    doc.addPage();
-                    yPosition = 10;
+                    // Set font
+                    doc.setFont("helvetica");
+                    
+                    // Add title
+                    doc.setFontSize(20);
+                    doc.text("Nieuwe Computer Gegevens", margin, y);
+                    y += lineHeight * 2;
+
+                    // Helper function to add a section
+                    function addSection(title, fields) {
+                        // Add section title
+                        doc.setFontSize(16);
+                        doc.text(title, margin, y);
+                        y += lineHeight;
+
+                        // Add fields
+                        doc.setFontSize(12);
+                        fields.forEach(field => {
+                            // Check if we need a new page
+                            if (y > 270) {
+                                doc.addPage();
+                                y = 20;
+                            }
+                            
+                            if (field && field.trim()) {
+                                doc.text(field, margin, y);
+                                y += lineHeight;
+                            }
+                        });
+                        y += lineHeight; // Add space after section
+                    }
+
+                    // Add client information
+                    const clientInfo = [
+                        `Klantnummer: ${data.clientInfo.number || '-'}`,
+                        `Naam: ${data.clientInfo.name || '-'}`,
+                        `Telefoonnummer: ${data.clientInfo.phone || '-'}`,
+                        `Adres: ${data.clientInfo.address || '-'}`,
+                        `Postcode: ${data.clientInfo.postal || '-'}`,
+                        `Gemeente: ${data.clientInfo.city || '-'}`,
+                        `E-mailadres: ${data.clientInfo.email || '-'}`,
+                        `Serienummer PC: ${data.clientInfo.serial || '-'}`
+                    ];
+                    addSection("Klant Informatie", clientInfo);
+
+                    // Add Microsoft account if exists
+                    if (data.microsoft.email || data.microsoft.password) {
+                        addSection("Microsoft Account", [
+                            `E-mail: ${data.microsoft.email || '-'}`,
+                            `Wachtwoord: ${data.microsoft.password || '-'}`
+                        ]);
+                    }
+
+                    // Add Norton account if exists
+                    if (data.norton.email || data.norton.password) {
+                        addSection("Norton Account", [
+                            `E-mail: ${data.norton.email || '-'}`,
+                            `Wachtwoord: ${data.norton.password || '-'}`
+                        ]);
+                    }
+
+                    // Add Gmail account if exists
+                    if (data.gmail.email || data.gmail.password) {
+                        addSection("Gmail Account", [
+                            `E-mail: ${data.gmail.email || '-'}`,
+                            `Wachtwoord: ${data.gmail.password || '-'}`
+                        ]);
+                    }
+
+                    // Add Telenet account if exists
+                    if (data.telenet.email || data.telenet.password) {
+                        addSection("Telenet Account", [
+                            `E-mail: ${data.telenet.email || '-'}`,
+                            `Wachtwoord: ${data.telenet.password || '-'}`
+                        ]);
+                    }
+
+                    // Add Proximus account if exists
+                    if (data.proximus.email || data.proximus.password) {
+                        addSection("Proximus Account", [
+                            `E-mail: ${data.proximus.email || '-'}`,
+                            `Wachtwoord: ${data.proximus.password || '-'}`
+                        ]);
+                    }
+
+                    // Add footer with date
+                    doc.setFontSize(10);
+                    doc.text(`Gegenereerd op: ${new Date().toLocaleDateString('nl-BE')}`, margin, 280);
+
+                    resolve(doc);
+                } catch (error) {
+                    console.error('PDF generation error:', error);
+                    reject(new Error('Er is een fout opgetreden bij het genereren van de PDF. Probeer het opnieuw.'));
                 }
-            }
-
-            // Function to add section with page break management
-            function addSection(title, items) {
-                checkPageBreak(30);  // Ensure space for section title and first item
-                doc.setFontSize(14);
-                doc.text(title, 15, yPosition);
-                yPosition += 10;
-
-                doc.setFontSize(12);
-                items.forEach(item => {
-                    checkPageBreak(10);
-                    doc.text(item, 20, yPosition);
-                    yPosition += 10;
-                });
-
-                yPosition += 10;  // Add some spacing between sections
-            }
-
-            // Add sections dynamically
-            const sections = [
-                { title: 'Klant Informatie', items: [
-                    `Klantnummer: ${data.clientInfo.number}`,
-                    `Naam: ${data.clientInfo.name}`,
-                    `Telefoonnummer: ${data.clientInfo.phone}`,
-                    `Adres: ${data.clientInfo.address}`,
-                    `Postcode: ${data.clientInfo.postal}`,
-                    `Gemeente: ${data.clientInfo.city}`,
-                    `E-mailadres: ${data.clientInfo.email}`,
-                    `Serienummer PC: ${data.clientInfo.serial}`
-                ]},
-                { title: 'Microsoft Account', items: [
-                    `E-mail: ${data.microsoft.email}`,
-                    `Wachtwoord: ${data.microsoft.password}`
-                ]},
-                // Add other accounts only if they have data
-                ...(data.norton.email || data.norton.password ? [{
-                    title: 'Norton Account', 
-                    items: [
-                        `E-mail: ${data.norton.email}`,
-                        `Wachtwoord: ${data.norton.password}`
-                    ]
-                }] : []),
-                ...(data.gmail.email || data.gmail.password ? [{
-                    title: 'Gmail Account', 
-                    items: [
-                        `E-mail: ${data.gmail.email}`,
-                        `Wachtwoord: ${data.gmail.password}`
-                    ]
-                }] : []),
-                ...(data.telenet.email || data.telenet.password ? [{
-                    title: 'Telenet Account', 
-                    items: [
-                        `E-mail: ${data.telenet.email}`,
-                        `Wachtwoord: ${data.telenet.password}`
-                    ]
-                }] : []),
-                ...(data.proximus.email || data.proximus.password ? [{
-                    title: 'Proximus Account', 
-                    items: [
-                        `E-mail: ${data.proximus.email}`,
-                        `Wachtwoord: ${data.proximus.password}`
-                    ]
-                }] : [])
-            ];
-
-            // Generate PDF with dynamic sections
-            sections.forEach(section => {
-                addSection(section.title, section.items);
-            });
-
-            // Add footer with date
-            doc.setFontSize(10);
-            doc.text(`Gegenereerd op: ${new Date().toLocaleDateString('nl-BE')}`, 15, -30, { align: 'left' });
-
-            // Save the PDF
-            const klantnummer = data.clientInfo.number || 'unknown';
-            const fileName = `Computer_Gegevens_${klantnummer}.pdf`;
-            doc.save(fileName);
-
-            // Send PDF to server
-            const pdfBlob = doc.output('blob');
-            const formData = new FormData();
-            formData.append('pdf', pdfBlob, fileName);
-            formData.append('email', data.clientInfo.email);
-            formData.append('clientName', data.clientInfo.name);
-            formData.append('clientNumber', klantnummer);
-
-            fetch('http://localhost:3000/send-pdf', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    alert('PDF is opgeslagen en verzonden naar uw e-mail!');
-                } else {
-                    alert('PDF is opgeslagen, maar kon niet worden verzonden. Probeer het later opnieuw.');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('PDF is opgeslagen, maar kon niet worden verzonden. Probeer het later opnieuw.');
             });
         }
 
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+        async function saveAndSendPDF(doc, data) {
+            try {
+                const klantnummer = data.clientInfo.number || 'unknown';
+                const fileName = `Computer_Gegevens_${klantnummer}.pdf`;
+                
+                // Save PDF locally
+                doc.save(fileName);
+
+                // Get PDF as blob
+                const pdfBlob = doc.output('blob');
+
+                // Create FormData and append PDF
+                const formData = new FormData();
+                formData.append('pdf', pdfBlob, fileName);
+                formData.append('email', data.clientInfo.email);
+                formData.append('clientName', data.clientInfo.name);
+                formData.append('clientNumber', data.clientInfo.number);
+
+                // Send to server
+                const response = await fetch('http://localhost:3000/send-pdf', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.message || 'Failed to send email');
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Error saving/sending PDF:', error);
+                throw new Error('PDF is opgeslagen, maar kon niet worden verzonden via e-mail. ' + error.message);
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const data = {
-                clientInfo: {
-                    number: document.getElementById('client-number').value,
-                    name: document.getElementById('client-name').value,
-                    phone: document.getElementById('client-phone').value,
-                    address: document.getElementById('client-address').value,
-                    postal: document.getElementById('client-postal').value,
-                    city: document.getElementById('client-city').value,
-                    email: document.getElementById('client-email').value,
-                    serial: document.getElementById('client-serial').value
-                },
-                microsoft: {
-                    email: document.getElementById('microsoft-email').value,
-                    password: document.getElementById('microsoft-password').value
-                },
-                norton: {
-                    email: document.getElementById('norton-email').value,
-                    password: document.getElementById('norton-password').value
-                },
-                gmail: {
-                    email: document.getElementById('gmail-email').value,
-                    password: document.getElementById('gmail-password').value
-                },
-                telenet: {
-                    email: document.getElementById('telenet-email').value,
-                    password: document.getElementById('telenet-password').value
-                },
-                proximus: {
-                    email: document.getElementById('proximus-email').value,
-                    password: document.getElementById('proximus-password').value
+            const loadingContainer = document.querySelector('.loading-container');
+            const loadingText = document.querySelector('.loading-text');
+            const successCheckmark = document.querySelector('.success-checkmark');
+            const spinner = document.querySelector('.spinner');
+            const progressDots = document.querySelector('.progress-dots');
+            const progressBar = document.querySelector('.progress-bar');
+
+            // Show loading container
+            loadingContainer.style.display = 'flex';
+            
+            try {
+                // Helper function to safely get input value
+                function getInputValue(id) {
+                    const element = document.getElementById(id);
+                    return element ? element.value : '';
                 }
-            };
-            
-            // Generate PDF with the collected data
-            generatePDF(data);
-            
-            // Clear the form
-            this.reset();
-        });
 
-        // Add loading indicator
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            document.querySelector('.loading').style.display = 'block';
-        });
+                const data = {
+                    clientInfo: {
+                        number: getInputValue('client-number'),
+                        name: getInputValue('client-name'),
+                        phone: getInputValue('client-phone'),
+                        address: getInputValue('client-address'),
+                        postal: getInputValue('client-postal'),
+                        city: getInputValue('client-city'),
+                        email: getInputValue('client-email'),
+                        serial: getInputValue('client-serial')
+                    },
+                    microsoft: {
+                        email: getInputValue('microsoft-email'),
+                        password: getInputValue('microsoft-password')
+                    },
+                    norton: {
+                        email: getInputValue('norton-email'),
+                        password: getInputValue('norton-password')
+                    },
+                    gmail: {
+                        email: getInputValue('gmail-email'),
+                        password: getInputValue('gmail-password')
+                    },
+                    telenet: {
+                        email: getInputValue('telenet-email'),
+                        password: getInputValue('telenet-password')
+                    },
+                    proximus: {
+                        email: getInputValue('proximus-email'),
+                        password: getInputValue('proximus-password')
+                    }
+                };
 
-        // Add touch feedback
-        document.querySelectorAll('input').forEach(input => {
-            input.addEventListener('focus', () => {
-                input.parentElement.style.transform = 'translateY(-2px)';
-            });
-            input.addEventListener('blur', () => {
-                input.parentElement.style.transform = 'none';
-            });
+                // Validate required fields
+                if (!data.clientInfo.name || !data.clientInfo.email) {
+                    throw new Error('Vul a.u.b. ten minste uw naam en e-mailadres in.');
+                }
+
+                // Update loading status
+                loadingText.textContent = 'PDF wordt gegenereerd...';
+                
+                // Generate PDF
+                const doc = await generatePDF(data);
+                
+                // Update loading status
+                loadingText.textContent = 'PDF wordt opgeslagen...';
+                
+                // Save PDF
+                await saveAndSendPDF(doc, data);
+
+                // Hide loading elements
+                spinner.style.display = 'none';
+                progressDots.style.display = 'none';
+                progressBar.style.display = 'none';
+
+                // Show success message
+                successCheckmark.style.display = 'block';
+                loadingText.textContent = 'PDF is succesvol opgeslagen!';
+
+                // Clear form after delay
+                setTimeout(() => {
+                    loadingContainer.style.display = 'none';
+                    // Reset display states
+                    spinner.style.display = 'block';
+                    progressDots.style.display = 'flex';
+                    progressBar.style.display = 'block';
+                    successCheckmark.style.display = 'none';
+                    // Clear the form
+                    this.reset();
+                }, 2000);
+
+            } catch (error) {
+                console.error('Error:', error);
+                // Hide loading elements
+                spinner.style.display = 'none';
+                progressDots.style.display = 'none';
+                progressBar.style.display = 'none';
+                // Show error message
+                loadingText.textContent = error.message || 'Er is een fout opgetreden. Controleer of alle velden correct zijn ingevuld.';
+                setTimeout(() => {
+                    loadingContainer.style.display = 'none';
+                    // Reset display states
+                    spinner.style.display = 'block';
+                    progressDots.style.display = 'flex';
+                    progressBar.style.display = 'block';
+                }, 3000);
+            }
         });
     </script>
 </body>
