@@ -205,6 +205,15 @@ app.post('/send-pdf', upload.single('pdf'), async (req, res) => {
         await transporter.sendMail(mailOptions);
         console.log('E-mail succesvol verzonden naar:', email);
         res.json({ success: true, message: 'E-mail succesvol verzonden' });
+
+        // Shutdown server after sending email
+        console.log('Server wordt afgesloten...');
+        setTimeout(() => {
+            server.close(() => {
+                console.log('Server succesvol afgesloten');
+                process.exit(0);
+            });
+        }, 1000); // Wait 1 second before shutting down to ensure response is sent
     } catch (error) {
         console.error('Fout bij verzenden e-mail:', {
             foutmelding: error.message,
@@ -237,7 +246,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start the server
-app.listen(port, () => {
+const server = app.listen(port, () => {
     console.log(`Server succesvol gestart op ${new Date().toLocaleString('nl-NL')}`);
     console.log(`Server draait op http://localhost:${port}`);
     console.log('Klaar om PDF-bestanden te verwerken en e-mails te verzenden');
