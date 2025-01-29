@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nieuwe Computer Gegevens Template</title>
+    <!-- Add jsPDF library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Add Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Add Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f8fafc;
+            --container-bg: white;
+            --text-color: #1e293b;
+            --border-color: #e2e8f0;
+            --input-border: #cbd5e1;
+            --input-bg: white;
+            --input-focus: #3b82f6;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+            --header-color: #1e293b;
+            --label-color: #64748b;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary-color: #3b82f6;
+                --primary-hover: #2563eb;
+                --bg-color: #0f172a;
+                --container-bg: #1e293b;
+                --text-color: #f1f5f9;
+                --border-color: #334155;
+                --input-border: #475569;
+                --input-bg: #1e293b;
+                --input-focus: #60a5fa;
+                --error-color: #f87171;
+                --success-color: #4ade80;
+                --header-color: #f1f5f9;
+                --label-color: #94a3b8;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: all 0.2s ease-in-out;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: var(--bg-color);
+            padding: 20px;
+            color: var(--text-color);
+            line-height: 1.5;
+        }
+
+        .banner-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: var(--container-bg);
+            border-radius: 16px 16px 0 0;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .banner {
+            width: 100%;
+            height: 240px;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.3s ease;
+        }
+
+        .banner:hover {
+            transform: scale(1.02);
+        }
+
+        .form-container {
+            background-color: var(--container-bg);
+            padding: 2.5rem;
+            border-radius: 0 0 16px 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .header h1 {
+            color: var(--header-color);
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .header p {
+            color: var(--label-color);
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .form-group {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background-color: var(--container-bg);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-group:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-group h2 {
+            margin-top: 0;
+            color: var(--header-color);
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group h2 i {
+            color: var(--primary-color);
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--label-color);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--input-border);
+            border-radius: 8px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--input-focus);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        input:hover {
+            border-color: var(--primary-color);
+        }
+
+        input::placeholder {
+            color: var(--label-color);
+            opacity: 0.6;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.875rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .reset-links {
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .reset-links a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .reset-links a:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
+        @media (max-width: 640px) {
+            .form-container {
+                padding: 1.5rem;
+            }
+
+            .form-group {
+                padding: 1rem;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div style="width: 100%; max-width: 800px; margin: 0 auto;">
+        <div class="banner-container">
+            <img src="https://raw.githubusercontent.com/VenimK/MusicLover/main/BANNER.jpg" 
+                alt="Musiclover" 
+                class="banner">
+        </div>
+        <div class="form-container">
+            <div class="header">
+                <h1>Nieuwe Computer Gegevens</h1>
+                <p>Vul hieronder uw gegevens en e-mailadressen in voor onze administratie.</p>
+            </div>
+            <form id="loginForm">
+                <!-- Client Information -->
+                <div class="form-group">
+                    <h2><i class="fas fa-user"></i> Klant Informatie</h2>
+                    <div class="input-group">
+                        <label for="client-number">Klantnummer</label>
+                        <input type="text" id="client-number" name="client-number" placeholder="Uw klantnummer" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-name">Naam</label>
+                        <input type="text" id="client-name" name="client-name" placeholder="Volledige naam" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-phone">Telefoonnummer</label>
+                        <input type="tel" id="client-phone" name="client-phone" placeholder="0470 12 34 56" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-address">Adres</label>
+                        <input type="text" id="client-address" name="client-address" placeholder="Straat en huisnummer" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-postal">Postcode</label>
+                        <input type="text" id="client-postal" name="client-postal" placeholder="1000" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-city">Gemeente</label>
+                        <input type="text" id="client-city" name="client-city" placeholder="Gemeente" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-email">E-mailadres</label>
+                        <input type="email" id="client-email" name="client-email" placeholder="uw@email.com" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="client-serial">Serienummer PC</label>
+                        <input type="text" id="client-serial" name="client-serial" required>
+                    </div>
+                </div>
+
+                <!-- Windows/Microsoft Account -->
+                <div class="form-group">
+                    <h2><i class="fab fa-windows"></i> Windows/Microsoft Account</h2>
+                    <div class="input-group">
+                        <label for="microsoft-email">Microsoft E-mailadres</label>
+                        <input type="email" id="microsoft-email" name="microsoft-email" placeholder="uw@outlook.com" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="microsoft-password">Microsoft Wachtwoord</label>
+                        <input type="password" id="microsoft-password" name="microsoft-password" required>
+                    </div>
+                    <div class="reset-links">
+                        <a href="https://account.live.com/ResetPassword.aspx" target="_blank">Wachtwoord vergeten? Klik hier voor Microsoft</a></small>
+                    </div>
+                </div>
+
+                <!-- Gmail -->
+                <div class="form-group">
+                    <h2><i class="fas fa-envelope"></i> Gmail Account</h2>
+                    <div class="input-group">
+                        <label for="gmail-email">Gmail E-mailadres</label>
+                        <input type="email" id="gmail-email" name="gmail-email" placeholder="uw@gmail.com">
+                    </div>
+                    <div class="input-group">
+                        <label for="gmail-password">Gmail Wachtwoord</label>
+                        <input type="password" id="gmail-password" name="gmail-password">
+                    </div>
+                    <div class="reset-links">
+                        <a href="https://accounts.google.com/signin/recovery" target="_blank">Wachtwoord vergeten? Klik hier voor Gmail</a>
+                    </div>
+                </div>
+
+                <!-- Telenet -->
+                <div class="form-group">
+                    <h2><i class="fas fa-wifi"></i> Telenet Account</h2>
+                    <div class="input-group">
+                        <label for="telenet-email">Telenet E-mailadres</label>
+                        <input type="email" id="telenet-email" name="telenet-email" placeholder="uw@telenet.be">
+                    </div>
+                    <div class="input-group">
+                        <label for="telenet-password">Telenet Wachtwoord</label>
+                        <input type="password" id="telenet-password" name="telenet-password">
+                    </div>
+                    <div class="reset-links">
+                        <a href="https://www2.telenet.be/nl/profiel/wachtwoord-vergeten?/#/login=dzsdsdsd/loginredirecturl=https%253A%252F%252Fwww2.telenet.be%252Fmytelenet" target="_blank">Wachtwoord vergeten? Klik hier voor Telenet</a>
+                    </div>
+                </div>
+
+                <!-- Proximus -->
+                <div class="form-group">
+                    <h2><i class="fas fa-wifi"></i> Proximus Account</h2>
+                    <div class="input-group">
+                        <label for="proximus-email">Proximus E-mailadres</label>
+                        <input type="email" id="proximus-email" name="proximus-email" placeholder="uw@proximus.be">
+                    </div>
+                    <div class="input-group">
+                        <label for="proximus-password">Proximus Wachtwoord</label>
+                        <input type="password" id="proximus-password" name="proximus-password">
+                    </div>
+                    <div class="reset-links">
+                        <a href="https://www.proximus.be/nl/customs/spa/apps/mailbox/#/recoverpassword?returnAddress=https:%2F%2Fwww.proximus.be%2Flogin%2Fnl%2Fwebmail.html&guiLang=nl" target="_blank">Wachtwoord vergeten? Klik hier voor Proximus</a>
+                    </div>
+                </div>
+
+                <!-- Norton Account -->
+                <div class="form-group">
+                    <h2><i class="fas fa-shield-alt"></i> Norton Account</h2>
+                    <div class="input-group">
+                        <label for="norton-email">Norton E-mailadres</label>
+                        <input type="email" id="norton-email" name="norton-email" placeholder="uw@email.com">
+                    </div>
+                    <div class="input-group">
+                        <label for="norton-password">Norton Wachtwoord</label>
+                        <input type="password" id="norton-password" name="norton-password">
+                    </div>
+                    <div class="reset-links">
+                        <a href="https://login.norton.com/sso/idp/recovery" target="_blank">Wachtwoord vergeten? Klik hier voor Norton</a></small>
+                    </div>
+                </div>
+
+                <button type="submit">
+                    <i class="fas fa-file-pdf"></i> Genereer PDF Document
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Initialize jsPDF
+        window.jsPDF = window.jspdf.jsPDF;
+
+        // Function to get URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        // Fill serial number and client number from URL parameters when page loads
+        window.addEventListener('load', function() {
+            const serialNumber = getUrlParameter('serial');
+            const clientNumber = getUrlParameter('client');
+            
+            if (serialNumber) {
+                const serialInput = document.getElementById('client-serial');
+                if (serialInput) {
+                    serialInput.value = serialNumber;
+                    serialInput.readOnly = true;
+                }
+            }
+            
+            if (clientNumber) {
+                const clientInput = document.getElementById('client-number');
+                if (clientInput) {
+                    clientInput.value = clientNumber;
+                    clientInput.readOnly = true;
+                }
+            }
+        });
+
+        function generatePDF(data) {
+            const doc = new jsPDF();
+            let yPosition = 10;
+
+            // Add banner image
+            doc.addImage(document.querySelector('.banner').src, 'JPEG', 15, yPosition, 180, 40);
+            yPosition += 50;
+
+            // Function to check and add new page if needed
+            function checkPageBreak(requiredSpace) {
+                if (yPosition + requiredSpace > 280) {  // 280 is close to the bottom of the page
+                    doc.addPage();
+                    yPosition = 10;
+                }
+            }
+
+            // Function to add section with page break management
+            function addSection(title, items) {
+                checkPageBreak(30);  // Ensure space for section title and first item
+                doc.setFontSize(14);
+                doc.text(title, 15, yPosition);
+                yPosition += 10;
+
+                doc.setFontSize(12);
+                items.forEach(item => {
+                    checkPageBreak(10);
+                    doc.text(item, 20, yPosition);
+                    yPosition += 10;
+                });
+
+                yPosition += 10;  // Add some spacing between sections
+            }
+
+            // Add sections dynamically
+            const sections = [
+                { title: 'Klant Informatie', items: [
+                    `Klantnummer: ${data.clientInfo.number}`,
+                    `Naam: ${data.clientInfo.name}`,
+                    `Telefoonnummer: ${data.clientInfo.phone}`,
+                    `Adres: ${data.clientInfo.address}`,
+                    `Postcode: ${data.clientInfo.postal}`,
+                    `Gemeente: ${data.clientInfo.city}`,
+                    `E-mailadres: ${data.clientInfo.email}`,
+                    `Serienummer PC: ${data.clientInfo.serial}`
+                ]},
+                { title: 'Microsoft Account', items: [
+                    `E-mail: ${data.microsoft.email}`,
+                    `Wachtwoord: ${data.microsoft.password}`
+                ]},
+                // Add other accounts only if they have data
+                ...(data.norton.email || data.norton.password ? [{
+                    title: 'Norton Account', 
+                    items: [
+                        `E-mail: ${data.norton.email}`,
+                        `Wachtwoord: ${data.norton.password}`
+                    ]
+                }] : []),
+                ...(data.gmail.email || data.gmail.password ? [{
+                    title: 'Gmail Account', 
+                    items: [
+                        `E-mail: ${data.gmail.email}`,
+                        `Wachtwoord: ${data.gmail.password}`
+                    ]
+                }] : []),
+                ...(data.telenet.email || data.telenet.password ? [{
+                    title: 'Telenet Account', 
+                    items: [
+                        `E-mail: ${data.telenet.email}`,
+                        `Wachtwoord: ${data.telenet.password}`
+                    ]
+                }] : []),
+                ...(data.proximus.email || data.proximus.password ? [{
+                    title: 'Proximus Account', 
+                    items: [
+                        `E-mail: ${data.proximus.email}`,
+                        `Wachtwoord: ${data.proximus.password}`
+                    ]
+                }] : [])
+            ];
+
+            // Generate PDF with dynamic sections
+            sections.forEach(section => {
+                addSection(section.title, section.items);
+            });
+
+            // Add footer with date
+            doc.setFontSize(10);
+            doc.text(`Gegenereerd op: ${new Date().toLocaleDateString('nl-BE')}`, 15, -30, { align: 'left' });
+
+            // Save the PDF
+            const klantnummer = data.clientInfo.number || 'unknown';
+            const fileName = `Computer_Gegevens_${klantnummer}.pdf`;
+            doc.save(fileName);
+
+            // Send PDF to server
+            const pdfBlob = doc.output('blob');
+            const formData = new FormData();
+            formData.append('pdf', pdfBlob, fileName);
+            formData.append('email', data.clientInfo.email);
+            formData.append('clientName', data.clientInfo.name);
+            formData.append('clientNumber', klantnummer);
+
+            fetch('http://localhost:3000/send-pdf', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('PDF is opgeslagen en verzonden naar uw e-mail!');
+                } else {
+                    alert('PDF is opgeslagen, maar kon niet worden verzonden. Probeer het later opnieuw.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('PDF is opgeslagen, maar kon niet worden verzonden. Probeer het later opnieuw.');
+            });
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const data = {
+                clientInfo: {
+                    number: document.getElementById('client-number').value,
+                    name: document.getElementById('client-name').value,
+                    phone: document.getElementById('client-phone').value,
+                    address: document.getElementById('client-address').value,
+                    postal: document.getElementById('client-postal').value,
+                    city: document.getElementById('client-city').value,
+                    email: document.getElementById('client-email').value,
+                    serial: document.getElementById('client-serial').value
+                },
+                microsoft: {
+                    email: document.getElementById('microsoft-email').value,
+                    password: document.getElementById('microsoft-password').value
+                },
+                norton: {
+                    email: document.getElementById('norton-email').value,
+                    password: document.getElementById('norton-password').value
+                },
+                gmail: {
+                    email: document.getElementById('gmail-email').value,
+                    password: document.getElementById('gmail-password').value
+                },
+                telenet: {
+                    email: document.getElementById('telenet-email').value,
+                    password: document.getElementById('telenet-password').value
+                },
+                proximus: {
+                    email: document.getElementById('proximus-email').value,
+                    password: document.getElementById('proximus-password').value
+                }
+            };
+            
+            // Generate PDF with the collected data
+            generatePDF(data);
+            
+            // Clear the form
+            this.reset();
+        });
+    </script>
+</body>
+</html>

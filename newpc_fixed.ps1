@@ -1490,7 +1490,7 @@ function Open-IndexFile {
         Show-Progress -Activity "Index Bestand" -Status "Chrome openen..." -PercentComplete 80
         
         # Open index.html in Chrome (minimized)
-        $indexUrl = "file:///$PSScriptRoot/index_updated.html?serial=$serialNumber"
+        $indexUrl = "file:///$PSScriptRoot/index_updated1.html?serial=$serialNumber"
         
         if ($global:ClientNumber) {
             $indexUrl += "&client=$global:ClientNumber"
