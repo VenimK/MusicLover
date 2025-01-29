@@ -135,4 +135,4 @@ Voor ondersteuning, [maak een issue aan](https://github.com/VenimK/MusicLover/is
 ### Versie 1.0
 - Eerste uitgave
 
- 2025 TechStick. Alle rechten voorbehouden. Contact: techmusiclover@outlook.be
+ 2024 TechStick. Alle rechten voorbehouden. Contact: techmusiclover@outlook.be
