@@ -25,6 +25,9 @@
             --success-color: #22c55e;
             --header-color: #1e293b;
             --label-color: #64748b;
+            --mobile-padding: 1rem;
+            --mobile-input-height: 3rem;
+            --mobile-font-size: 16px;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -234,22 +237,133 @@
             text-decoration: underline;
         }
 
-        @media (max-width: 640px) {
-            .form-container {
-                padding: 1.5rem;
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                background-color: var(--bg-color);
+                font-size: var(--mobile-font-size);
             }
 
-            .form-group {
-                padding: 1rem;
+            .banner-container {
+                border-radius: 0;
+                margin: 0;
+            }
+
+            .form-container {
+                border-radius: 0;
+                padding: var(--mobile-padding);
+                box-shadow: none;
+            }
+
+            .banner {
+                height: 180px;
             }
 
             .header h1 {
                 font-size: 1.5rem;
+                padding: 0 1rem;
+            }
+
+            .header p {
+                padding: 0 1rem;
+                font-size: 0.9rem;
+            }
+
+            .form-group {
+                margin-bottom: 1.5rem;
+                padding: 1rem;
+                border-radius: 8px;
+            }
+
+            .form-group h2 {
+                font-size: 1.1rem;
+            }
+
+            .input-group {
+                margin-bottom: 1rem;
+            }
+
+            input {
+                height: var(--mobile-input-height);
+                font-size: var(--mobile-font-size);
+                padding: 0.5rem 1rem;
+                -webkit-appearance: none;
+                border-radius: 8px;
+            }
+
+            input:focus {
+                transform: translateY(-1px);
+            }
+
+            button {
+                height: var(--mobile-input-height);
+                font-size: var(--mobile-font-size);
+                padding: 0 1.5rem;
+                border-radius: 8px;
+                margin-top: 1rem;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            button:active {
+                transform: scale(0.98);
+            }
+
+            .sticky-submit {
+                position: sticky;
+                bottom: 0;
+                background-color: var(--container-bg);
+                padding: 1rem;
+                margin: 0 -1rem -1rem -1rem;
+                box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+                z-index: 100;
+            }
+
+            .postal-city-grid {
+                display: grid;
+                grid-template-columns: 1fr 2fr;
+                gap: 0.5rem;
+            }
+
+            @keyframes slideUp {
+                from { transform: translateY(20px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+
+            .form-group {
+                animation: slideUp 0.3s ease-out forwards;
+                animation-delay: calc(var(--animation-order) * 0.1s);
+            }
+
+            html {
+                scroll-behavior: smooth;
+            }
+
+            input:focus {
+                outline: none;
+                border-color: var(--primary-color);
+                box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            }
+
+            .loading {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: linear-gradient(to right, var(--primary-color), var(--primary-hover));
+                animation: loading 1.5s infinite;
+                z-index: 1000;
+            }
+
+            @keyframes loading {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
             }
         }
     </style>
 </head>
 <body>
+    <div class="loading" style="display: none;"></div>
     <div style="width: 100%; max-width: 800px; margin: 0 auto;">
         <div class="banner-container">
             <img src="https://raw.githubusercontent.com/VenimK/MusicLover/main/BANNER.jpg" 
@@ -263,7 +377,7 @@
             </div>
             <form id="loginForm">
                 <!-- Client Information -->
-                <div class="form-group">
+                <div class="form-group" style="--animation-order: 1;">
                     <h2><i class="fas fa-user"></i> Klant Informatie</h2>
                     <div class="input-group">
                         <label for="client-number">Klantnummer</label>
@@ -277,17 +391,15 @@
                         <label for="client-phone">Telefoonnummer</label>
                         <input type="tel" id="client-phone" name="client-phone" placeholder="0470 12 34 56" required>
                     </div>
-                    <div class="input-group">
-                        <label for="client-address">Adres</label>
-                        <input type="text" id="client-address" name="client-address" placeholder="Straat en huisnummer" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="client-postal">Postcode</label>
-                        <input type="text" id="client-postal" name="client-postal" placeholder="1000" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="client-city">Gemeente</label>
-                        <input type="text" id="client-city" name="client-city" placeholder="Gemeente" required>
+                    <div class="postal-city-grid">
+                        <div class="input-group">
+                            <label for="client-postal">Postcode</label>
+                            <input type="text" id="client-postal" name="client-postal" placeholder="1000" required pattern="[0-9]{4}" inputmode="numeric">
+                        </div>
+                        <div class="input-group">
+                            <label for="client-city">Gemeente</label>
+                            <input type="text" id="client-city" name="client-city" placeholder="Gemeente" required>
+                        </div>
                     </div>
                     <div class="input-group">
                         <label for="client-email">E-mailadres</label>
@@ -300,7 +412,7 @@
                 </div>
 
                 <!-- Windows/Microsoft Account -->
-                <div class="form-group">
+                <div class="form-group" style="--animation-order: 2;">
                     <h2><i class="fab fa-windows"></i> Windows/Microsoft Account</h2>
                     <div class="input-group">
                         <label for="microsoft-email">Microsoft E-mailadres</label>
@@ -348,7 +460,7 @@
                 </div>
 
                 <!-- Proximus -->
-                <div class="form-group">
+                <div class="form-group" style="--animation-order: 3;">
                     <h2><i class="fas fa-wifi"></i> Proximus Account</h2>
                     <div class="input-group">
                         <label for="proximus-email">Proximus E-mailadres</label>
@@ -379,9 +491,11 @@
                     </div>
                 </div>
 
-                <button type="submit">
-                    <i class="fas fa-file-pdf"></i> Genereer PDF Document
-                </button>
+                <div class="sticky-submit">
+                    <button type="submit">
+                        <i class="fas fa-file-pdf"></i> Genereer PDF Document
+                    </button>
+                </div>
             </form>
         </div>
     </div>
@@ -581,6 +695,21 @@
             
             // Clear the form
             this.reset();
+        });
+
+        // Add loading indicator
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            document.querySelector('.loading').style.display = 'block';
+        });
+
+        // Add touch feedback
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', () => {
+                input.parentElement.style.transform = 'translateY(-2px)';
+            });
+            input.addEventListener('blur', () => {
+                input.parentElement.style.transform = 'none';
+            });
         });
     </script>
 </body>
