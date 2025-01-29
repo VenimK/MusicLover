@@ -77,7 +77,7 @@ app.post('/send-pdf', upload.single('pdf'), async (req, res) => {
         // Email options with HTML template
         const mailOptions = {
             from: {
-                name: 'Musiclover',
+                name: 'Music Lover',
                 address: 'info@musiclover.be'
             },
             to: email,

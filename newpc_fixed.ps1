@@ -1148,7 +1148,7 @@ function Start-NodeServer {
         }
         
         # Start server.js in a new window
-        $serverPath = Join-Path $PSScriptRoot "server.js"
+        $serverPath = Join-Path $PSScriptRoot "email-server.js"
         if (-not (Test-Path $serverPath)) {
             throw "server.js niet gevonden in: $PSScriptRoot"
         }
