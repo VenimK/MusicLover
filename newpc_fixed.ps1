@@ -1757,9 +1757,14 @@ try {
     # Stap 3b: Klantnummer invoeren
     Write-Host "`nStap 3b: Klantnummer invoeren..." -ForegroundColor Yellow
     $global:ClientNumber = Get-ClientNumber
+
+    # Stap 4: Windows Updates
+    Write-Host "`nStap 4: Windows Updates installeren" -ForegroundColor Yellow
+    Install-WindowsUpdateModule
+    Install-WindowsUpdates
     
-    # Stap 4: Microsoft Office installatie
-    Write-Host "`nStap 4: Microsoft Office installatie" -ForegroundColor Yellow
+    # Stap 5: Microsoft Office installatie
+    Write-Host "`nStap 5: Microsoft Office installatie" -ForegroundColor Yellow
     Write-Host "Kies een Office versie om te installeren:" -ForegroundColor Cyan
     Write-Host "1. Microsoft 365 Business"
     Write-Host "2. Office 2021"
@@ -1802,10 +1807,6 @@ try {
             }
         }
     }
-
-    # Stap 5: Extra Software Pack
-    Write-Host "`nStap 5: Extra Software Pack controleren..." -ForegroundColor Yellow
-    Install-ExtraSoftwarePack
 
     # Stap 6: Winget installatie
     Write-Host "`nStap 6: Winget controleren..." -ForegroundColor Yellow
@@ -1895,24 +1896,12 @@ try {
         }
     }
 
-    # Stap 9: Windows updates installeren
-    if ($SkipWindowsUpdates) {
-        Write-Host "`nStap 9: Windows updates overgeslagen (SkipWindowsUpdates parameter gebruikt)..." -ForegroundColor Yellow
-        Write-LogMessage "Windows updates overgeslagen door SkipWindowsUpdates parameter"
-    } else {
-        Write-Host "`nStap 9: Windows updates installeren..." -ForegroundColor Yellow
-        if (-not (Install-WindowsUpdates)) {
-            Write-Host "Windows updates gefaald, maar script gaat door..." -ForegroundColor Yellow
-            Write-LogMessage "Windows updates gefaald, script gaat door"
-        }
-    }
-
-    # Stap 10: Node.js installatie
+    # Stap 9: Node.js installatie
     if ($SkipNodeJSInstallation) {
-        Write-Host "`nStap 10: Node.js installatie overgeslagen (SkipNodeJSInstallation parameter gebruikt)..." -ForegroundColor Yellow
+        Write-Host "`nStap 9: Node.js installatie overgeslagen (SkipNodeJSInstallation parameter gebruikt)..." -ForegroundColor Yellow
         Write-LogMessage "Node.js installatie overgeslagen door SkipNodeJSInstallation parameter"
     } else {
-        Write-Host "`nStap 10: Node.js installatie controleren..." -ForegroundColor Yellow
+        Write-Host "`nStap 9: Node.js installatie controleren..." -ForegroundColor Yellow
         if (-not (Test-NodeJS)) {
             Write-Host "Node.js niet gevonden. Installatie starten..." -ForegroundColor Yellow
             if (-not (Install-NodeJS)) {
@@ -1940,12 +1929,12 @@ try {
         }
     }
 
-    # Stap 11: NPM packages installeren
+    # Stap 10: NPM packages installeren
     if ($SkipNpmPackages) {
-        Write-Host "`nStap 11: NPM packages installatie overgeslagen (SkipNpmPackages parameter gebruikt)..." -ForegroundColor Yellow
+        Write-Host "`nStap 10: NPM packages installatie overgeslagen (SkipNpmPackages parameter gebruikt)..." -ForegroundColor Yellow
         Write-LogMessage "NPM packages installatie overgeslagen door SkipNpmPackages parameter"
     } else {
-        Write-Host "`nStap 11: NPM packages installeren..." -ForegroundColor Yellow
+        Write-Host "`nStap 10: NPM packages installeren..." -ForegroundColor Yellow
         if (-not (Install-NpmPackages)) {
             throw "NPM packages installatie mislukt"
         }
@@ -1960,12 +1949,12 @@ try {
         }
     }
 
-    # Stap 12: Server starten
+    # Stap 11: Server starten
     if ($SkipNodeServer) {
-        Write-Host "`nStap 12: Node.js server starten overgeslagen (SkipNodeServer parameter gebruikt)..." -ForegroundColor Yellow
+        Write-Host "`nStap 11: Node.js server starten overgeslagen (SkipNodeServer parameter gebruikt)..." -ForegroundColor Yellow
         Write-LogMessage "Node.js server starten overgeslagen door SkipNodeServer parameter"
     } else {
-        Write-Host "`nStap 12: Node.js server starten..." -ForegroundColor Yellow
+        Write-Host "`nStap 11: Node.js server starten..." -ForegroundColor Yellow
         if (-not (Start-NodeServer)) {
             throw "Server starten mislukt"
         }
@@ -1980,12 +1969,12 @@ try {
         }
     }
 
-    # Stap 13: Index openen
+    # Stap 12: Index openen
     if ($SkipIndexOpen) {
-        Write-Host "`nStap 13: Index openen overgeslagen (SkipIndexOpen parameter gebruikt)..." -ForegroundColor Yellow
+        Write-Host "`nStap 12: Index openen overgeslagen (SkipIndexOpen parameter gebruikt)..." -ForegroundColor Yellow
         Write-LogMessage "Index openen overgeslagen door SkipIndexOpen parameter"
     } else {
-        Write-Host "`nStap 13: Index openen..." -ForegroundColor Yellow
+        Write-Host "`nStap 12: Index openen..." -ForegroundColor Yellow
         Open-IndexFile
     }
 
@@ -1996,8 +1985,8 @@ try {
         Open-IndexFile
     }
 
-    # Stap 14: Energie-instellingen terugzetten
-    Write-Host "`nStap 14: Energie-instellingen terugzetten..." -ForegroundColor Yellow
+    # Stap 13: Energie-instellingen terugzetten
+    Write-Host "`nStap 13: Energie-instellingen terugzetten..." -ForegroundColor Yellow
     Restore-DefaultPowerSettings
 
     Write-Host "`nSetup succesvol afgerond!" -ForegroundColor Green
