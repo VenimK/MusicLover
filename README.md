@@ -39,12 +39,8 @@ Dit script automatiseert de installatie en configuratie van nieuwe Windows PC's 
 
 ## Snelle Start
 
-1. Download het script:
-   ```powershell
-   Invoke-WebRequest -Uri "JOUW_GIST_URL" -OutFile "$env:TEMP\newpc_fixed.ps1"
-   ```
 
-2. Voer het script uit met standaardinstellingen:
+1. Voer het script uit met standaardinstellingen:
    ```powershell
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\newpc_fixed.ps1"
    ```
