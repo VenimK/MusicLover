@@ -1763,6 +1763,8 @@ try {
     Install-WindowsUpdateModule
     Install-WindowsUpdates
     
+    Send-TextbeeSMS -Message "Window Updates Compleet voor client $global:ClientNumber" 
+
     # Stap 5: Microsoft Office installatie
     Write-Host "`nStap 5: Microsoft Office installatie" -ForegroundColor Yellow
     Write-Host "Kies een Office versie om te installeren:" -ForegroundColor Cyan
@@ -1772,7 +1774,7 @@ try {
     Write-Host "4. Geen Office installatie"
     Write-Host "(Automatisch overslaan na 30 seconden)" -ForegroundColor Gray
     
-    $timeoutSeconds = 30
+    $timeoutSeconds = 20
     $choice = $null
     $startTime = Get-Date
     

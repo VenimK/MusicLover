@@ -122,11 +122,11 @@ Het script maakt gedetailleerde logbestanden aan op:
 
 ## Ondersteuning
 
-Voor ondersteuning, [maak een issue aan](jouw-repo-issues-link) of neem contact op met je systeembeheerder.
+Voor ondersteuning, [maak een issue aan](https://github.com/VenimK/MusicLover/issues) of neem contact op met je systeembeheerder.
 
 ## Wijzigingslog
 
-### Versie 2.0 (2024-01-17)
+### Versie 2.0 (2025-01-17)
 - Toegevoegd: veilige wachtwoordverwerking
 - Verbeterd: Notepad++ installatie betrouwbaarheid
 - Verbeterd: foutafhandeling en logging
@@ -135,4 +135,4 @@ Voor ondersteuning, [maak een issue aan](jouw-repo-issues-link) of neem contact 
 ### Versie 1.0
 - Eerste uitgave
 
- 2024 TechStick. Alle rechten voorbehouden. Contact: techmusiclover@outlook.be
+ 2025 TechStick. Alle rechten voorbehouden. Contact: techmusiclover@outlook.be
