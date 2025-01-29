@@ -703,43 +703,48 @@
                         format: 'a4'
                     });
 
-                    let y = 20; // Starting y position
+                    let yPos = 10; // Starting y position
                     const margin = 20; // Left margin
                     const lineHeight = 10; // Height between lines
 
                     // Set font
                     doc.setFont("helvetica");
                     
-                    // Add title
-                    doc.setFontSize(20);
-                    doc.text("Nieuwe Computer Gegevens", margin, y);
-                    y += lineHeight * 2;
-
-                    // Helper function to add a section
-                    function addSection(title, fields) {
-                        // Add section title
-                        doc.setFontSize(16);
-                        doc.text(title, margin, y);
-                        y += lineHeight;
-
-                        // Add fields
-                        doc.setFontSize(12);
-                        fields.forEach(field => {
-                            // Check if we need a new page
-                            if (y > 270) {
-                                doc.addPage();
-                                y = 20;
-                            }
-                            
-                            if (field && field.trim()) {
-                                doc.text(field, margin, y);
-                                y += lineHeight;
-                            }
-                        });
-                        y += lineHeight; // Add space after section
+                    // Add banner image
+                    const bannerImg = document.getElementById('bannerImage');
+                    if (!bannerImg) {
+                        const img = new Image();
+                        img.id = 'bannerImage';
+                        img.style.display = 'none';
+                        img.src = 'https://raw.githubusercontent.com/VenimK/MusicLover/main/BANNER.jpg';
+                        document.body.appendChild(img);
+                        
+                        // Wait for image to load
+                        img.onload = () => {
+                            const imgWidth = 190; // Max width for A4
+                            const imgHeight = (img.height * imgWidth) / img.width;
+                            doc.addImage(img, 'JPEG', 10, yPos, imgWidth, imgHeight);
+                            yPos += imgHeight + 10;
+                        };
                     }
 
-                    // Add client information
+                    // Add title
+                    doc.setFontSize(20);
+                    doc.text("Nieuwe Computer Gegevens", margin, yPos);
+                    yPos += lineHeight * 2;
+
+                    // Add current date
+                    const currentDate = new Date().toLocaleDateString('nl-BE');
+                    doc.setFontSize(12);
+                    doc.text(`Datum: ${currentDate}`, margin, yPos);
+                    yPos += lineHeight;
+
+                    // Client Information Section
+                    doc.setFontSize(14);
+                    doc.text('Klant Informatie', margin, yPos);
+                    yPos += lineHeight;
+
+                    doc.setFontSize(12);
                     const clientInfo = [
                         `Klantnummer: ${data.clientInfo.number || '-'}`,
                         `Naam: ${data.clientInfo.name || '-'}`,
@@ -750,51 +755,60 @@
                         `E-mailadres: ${data.clientInfo.email || '-'}`,
                         `Serienummer PC: ${data.clientInfo.serial || '-'}`
                     ];
-                    addSection("Klant Informatie", clientInfo);
 
-                    // Add Microsoft account if exists
-                    if (data.microsoft.email || data.microsoft.password) {
-                        addSection("Microsoft Account", [
-                            `E-mail: ${data.microsoft.email || '-'}`,
-                            `Wachtwoord: ${data.microsoft.password || '-'}`
-                        ]);
+                    clientInfo.forEach(info => {
+                        doc.text(info, margin, yPos);
+                        yPos += lineHeight;
+                    });
+                    yPos += lineHeight; // Add space after section
+
+                    // Account Information Sections
+                    const accounts = [
+                        { title: 'Windows/Microsoft Account', data: data.microsoft },
+                        { title: 'Gmail Account', data: data.gmail },
+                        { title: 'Telenet Account', data: data.telenet },
+                        { title: 'Proximus Account', data: data.proximus },
+                        { title: 'Norton Account', data: data.norton }
+                    ];
+
+                    accounts.forEach(account => {
+                        if (account.data && (account.data.email || account.data.password)) {
+                            // Check if we need to add a new page
+                            if (yPos > 250) {
+                                doc.addPage();
+                                yPos = 20;
+                            }
+
+                            doc.setFontSize(14);
+                            doc.text(account.title, margin, yPos);
+                            yPos += lineHeight;
+
+                            doc.setFontSize(12);
+                            if (account.data.email) {
+                                doc.text(`E-mail: ${account.data.email}`, margin, yPos);
+                                yPos += lineHeight;
+                            }
+                            if (account.data.password) {
+                                doc.text(`Wachtwoord: ${account.data.password}`, margin, yPos);
+                                yPos += lineHeight;
+                            }
+                            yPos += lineHeight; // Add space after section
+                        }
+                    });
+
+                    // Add footer
+                    const pageCount = doc.internal.getNumberOfPages();
+                    for (let i = 1; i <= pageCount; i++) {
+                        doc.setPage(i);
+                        doc.setFontSize(10);
+                        doc.text(
+                            'Music Lover - Yzerhand 27, 9120 BEVEREN - Tel: 03 775 68 31',
+                            105,
+                            285,
+                            { align: 'center' }
+                        );
+                        doc.text(`Pagina ${i} van ${pageCount}`, 105, 292, { align: 'center' });
                     }
-
-                    // Add Norton account if exists
-                    if (data.norton.email || data.norton.password) {
-                        addSection("Norton Account", [
-                            `E-mail: ${data.norton.email || '-'}`,
-                            `Wachtwoord: ${data.norton.password || '-'}`
-                        ]);
-                    }
-
-                    // Add Gmail account if exists
-                    if (data.gmail.email || data.gmail.password) {
-                        addSection("Gmail Account", [
-                            `E-mail: ${data.gmail.email || '-'}`,
-                            `Wachtwoord: ${data.gmail.password || '-'}`
-                        ]);
-                    }
-
-                    // Add Telenet account if exists
-                    if (data.telenet.email || data.telenet.password) {
-                        addSection("Telenet Account", [
-                            `E-mail: ${data.telenet.email || '-'}`,
-                            `Wachtwoord: ${data.telenet.password || '-'}`
-                        ]);
-                    }
-
-                    // Add Proximus account if exists
-                    if (data.proximus.email || data.proximus.password) {
-                        addSection("Proximus Account", [
-                            `E-mail: ${data.proximus.email || '-'}`,
-                            `Wachtwoord: ${data.proximus.password || '-'}`
-                        ]);
-                    }
-
-                    // Add footer with date
-                    doc.setFontSize(10);
-                    doc.text(`Gegenereerd op: ${new Date().toLocaleDateString('nl-BE')}`, margin, 280);
 
                     resolve(doc);
                 } catch (error) {
