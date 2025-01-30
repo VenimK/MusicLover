@@ -698,33 +698,25 @@
                 const doc = new jsPDF();
                 let yPosition = 10;
 
-                // Add banner image using the direct URL
-                doc.addImage('https://raw.githubusercontent.com/VenimK/MusicLover/main/BANNER.jpg', 'JPEG', 15, yPosition, 180, 40);
-                yPosition += 50;
+                // Add banner image using the direct URL - reduced size
+                doc.addImage('https://raw.githubusercontent.com/VenimK/MusicLover/main/BANNER.jpg', 'JPEG', 15, yPosition, 180, 25);
+                yPosition += 30;
 
-                // Function to check and add new page if needed
-                function checkPageBreak(requiredSpace) {
-                    if (yPosition + requiredSpace > 280) {  // 280 is close to the bottom of the page
-                        doc.addPage();
-                        yPosition = 10;
-                    }
-                }
-
-                // Function to add section with page break management
+                // Function to add section with compact layout
                 function addSection(title, items) {
-                    checkPageBreak(30);  // Ensure space for section title and first item
-                    doc.setFontSize(14);
-                    doc.text(title, 15, yPosition);
-                    yPosition += 10;
-
                     doc.setFontSize(12);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(title, 15, yPosition);
+                    yPosition += 6;
+
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
                     items.forEach(item => {
-                        checkPageBreak(10);
                         doc.text(item, 20, yPosition);
-                        yPosition += 10;
+                        yPosition += 5;
                     });
 
-                    yPosition += 10;  // Add some spacing between sections
+                    yPosition += 3;  // Reduced spacing between sections
                 }
 
                 // Add sections dynamically
@@ -782,7 +774,7 @@
                 });
 
                 // Add footer with date
-                doc.setFontSize(10);
+                doc.setFontSize(8);
                 doc.text(`Gegenereerd op: ${new Date().toLocaleDateString('nl-BE')}`, 15, 280);
 
                 return doc;
