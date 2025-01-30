@@ -520,6 +520,9 @@
     </div>
 
     <div style="width: 100%; max-width: 800px; margin: 0 auto;">
+        <div class="container">
+            <img src="BANNER.jpg" alt="Music Lover Banner" class="banner" style="display: none;">
+        </div>
         <div class="banner-container">
             <img src="https://raw.githubusercontent.com/VenimK/MusicLover/main/BANNER.jpg" 
                 alt="Musiclover" 
@@ -694,58 +697,45 @@
         });
 
         async function generatePDF(data) {
-            return new Promise((resolve, reject) => {
-                try {
-                    // Create new jsPDF instance with A4 size
-                    const doc = new jsPDF({
-                        orientation: 'portrait',
-                        unit: 'mm',
-                        format: 'a4'
+            try {
+                const doc = new jsPDF();
+                let yPosition = 10;
+
+                // Add banner image
+                const bannerElement = document.querySelector('.banner');
+                if (bannerElement) {
+                    doc.addImage(bannerElement.src, 'JPEG', 15, yPosition, 180, 40);
+                    yPosition += 50;
+                }
+
+                // Function to check and add new page if needed
+                function checkPageBreak(requiredSpace) {
+                    if (yPosition + requiredSpace > 280) {  // 280 is close to the bottom of the page
+                        doc.addPage();
+                        yPosition = 10;
+                    }
+                }
+
+                // Function to add section with page break management
+                function addSection(title, items) {
+                    checkPageBreak(30);  // Ensure space for section title and first item
+                    doc.setFontSize(14);
+                    doc.text(title, 15, yPosition);
+                    yPosition += 10;
+
+                    doc.setFontSize(12);
+                    items.forEach(item => {
+                        checkPageBreak(10);
+                        doc.text(item, 20, yPosition);
+                        yPosition += 10;
                     });
 
-                    let yPos = 10; // Starting y position
-                    const margin = 20; // Left margin
-                    const lineHeight = 10; // Height between lines
+                    yPosition += 10;  // Add some spacing between sections
+                }
 
-                    // Set font
-                    doc.setFont("helvetica");
-                    
-                    // Add banner image
-                    const bannerImg = document.getElementById('bannerImage');
-                    if (!bannerImg) {
-                        const img = new Image();
-                        img.id = 'bannerImage';
-                        img.style.display = 'none';
-                        img.src = 'https://raw.githubusercontent.com/VenimK/MusicLover/main/BANNER.jpg';
-                        document.body.appendChild(img);
-                        
-                        // Wait for image to load
-                        img.onload = () => {
-                            const imgWidth = 190; // Max width for A4
-                            const imgHeight = (img.height * imgWidth) / img.width;
-                            doc.addImage(img, 'JPEG', 10, yPos, imgWidth, imgHeight);
-                            yPos += imgHeight + 10;
-                        };
-                    }
-
-                    // Add title
-                    doc.setFontSize(20);
-                    doc.text("Nieuwe Computer Gegevens", margin, yPos);
-                    yPos += lineHeight * 2;
-
-                    // Add current date
-                    const currentDate = new Date().toLocaleDateString('nl-BE');
-                    doc.setFontSize(12);
-                    doc.text(`Datum: ${currentDate}`, margin, yPos);
-                    yPos += lineHeight;
-
-                    // Client Information Section
-                    doc.setFontSize(14);
-                    doc.text('Klant Informatie', margin, yPos);
-                    yPos += lineHeight;
-
-                    doc.setFontSize(12);
-                    const clientInfo = [
+                // Add sections dynamically
+                const sections = [
+                    { title: 'Klant Informatie', items: [
                         `Klantnummer: ${data.clientInfo.number || '-'}`,
                         `Naam: ${data.clientInfo.name || '-'}`,
                         `Telefoonnummer: ${data.clientInfo.phone || '-'}`,
@@ -754,68 +744,58 @@
                         `Gemeente: ${data.clientInfo.city || '-'}`,
                         `E-mailadres: ${data.clientInfo.email || '-'}`,
                         `Serienummer PC: ${data.clientInfo.serial || '-'}`
-                    ];
+                    ]},
+                    ...(data.microsoft.email || data.microsoft.password ? [{
+                        title: 'Microsoft Account', 
+                        items: [
+                            `E-mail: ${data.microsoft.email || '-'}`,
+                            `Wachtwoord: ${data.microsoft.password || '-'}`
+                        ]
+                    }] : []),
+                    ...(data.norton.email || data.norton.password ? [{
+                        title: 'Norton Account', 
+                        items: [
+                            `E-mail: ${data.norton.email || '-'}`,
+                            `Wachtwoord: ${data.norton.password || '-'}`
+                        ]
+                    }] : []),
+                    ...(data.gmail.email || data.gmail.password ? [{
+                        title: 'Gmail Account', 
+                        items: [
+                            `E-mail: ${data.gmail.email || '-'}`,
+                            `Wachtwoord: ${data.gmail.password || '-'}`
+                        ]
+                    }] : []),
+                    ...(data.telenet.email || data.telenet.password ? [{
+                        title: 'Telenet Account', 
+                        items: [
+                            `E-mail: ${data.telenet.email || '-'}`,
+                            `Wachtwoord: ${data.telenet.password || '-'}`
+                        ]
+                    }] : []),
+                    ...(data.proximus.email || data.proximus.password ? [{
+                        title: 'Proximus Account', 
+                        items: [
+                            `E-mail: ${data.proximus.email || '-'}`,
+                            `Wachtwoord: ${data.proximus.password || '-'}`
+                        ]
+                    }] : [])
+                ];
 
-                    clientInfo.forEach(info => {
-                        doc.text(info, margin, yPos);
-                        yPos += lineHeight;
-                    });
-                    yPos += lineHeight; // Add space after section
+                // Generate PDF with dynamic sections
+                sections.forEach(section => {
+                    addSection(section.title, section.items);
+                });
 
-                    // Account Information Sections
-                    const accounts = [
-                        { title: 'Windows/Microsoft Account', data: data.microsoft },
-                        { title: 'Gmail Account', data: data.gmail },
-                        { title: 'Telenet Account', data: data.telenet },
-                        { title: 'Proximus Account', data: data.proximus },
-                        { title: 'Norton Account', data: data.norton }
-                    ];
+                // Add footer with date
+                doc.setFontSize(10);
+                doc.text(`Gegenereerd op: ${new Date().toLocaleDateString('nl-BE')}`, 15, 280);
 
-                    accounts.forEach(account => {
-                        if (account.data && (account.data.email || account.data.password)) {
-                            // Check if we need to add a new page
-                            if (yPos > 250) {
-                                doc.addPage();
-                                yPos = 20;
-                            }
-
-                            doc.setFontSize(14);
-                            doc.text(account.title, margin, yPos);
-                            yPos += lineHeight;
-
-                            doc.setFontSize(12);
-                            if (account.data.email) {
-                                doc.text(`E-mail: ${account.data.email}`, margin, yPos);
-                                yPos += lineHeight;
-                            }
-                            if (account.data.password) {
-                                doc.text(`Wachtwoord: ${account.data.password}`, margin, yPos);
-                                yPos += lineHeight;
-                            }
-                            yPos += lineHeight; // Add space after section
-                        }
-                    });
-
-                    // Add footer
-                    const pageCount = doc.internal.getNumberOfPages();
-                    for (let i = 1; i <= pageCount; i++) {
-                        doc.setPage(i);
-                        doc.setFontSize(10);
-                        doc.text(
-                            'Music Lover - Yzerhand 27, 9120 BEVEREN - Tel: 03 775 68 31',
-                            105,
-                            285,
-                            { align: 'center' }
-                        );
-                        doc.text(`Pagina ${i} van ${pageCount}`, 105, 292, { align: 'center' });
-                    }
-
-                    resolve(doc);
-                } catch (error) {
-                    console.error('PDF generation error:', error);
-                    reject(new Error('Er is een fout opgetreden bij het genereren van de PDF. Probeer het opnieuw.'));
-                }
-            });
+                return doc;
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                throw new Error('Er is een fout opgetreden bij het genereren van de PDF.');
+            }
         }
 
         async function saveAndSendPDF(doc, data) {
