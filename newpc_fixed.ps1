@@ -894,7 +894,7 @@ function Install-WindowsUpdates {
     try {
         Write-Host "Windows Updates installeren..." -ForegroundColor Yellow
         Write-LogMessage "Start Windows Updates installatie"
-        
+
         # Install PSWindowsUpdate module if not present
         if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
             Install-WindowsUpdateModule
@@ -919,7 +919,7 @@ function Install-WindowsUpdates {
         # Wait for both jobs to complete with timeout
         $timeout = 120 # 2 minutes timeout
         $completed = Wait-Job -Job $regularJob, $optionalJob -Timeout $timeout
-        
+
         if ($completed -notcontains $regularJob -or $completed -notcontains $optionalJob) {
             Write-Host "Timeout bij zoeken naar updates. Doorgaan met gevonden updates..." -ForegroundColor Yellow
             Write-LogMessage "Timeout bij zoeken naar updates"
@@ -945,17 +945,57 @@ function Install-WindowsUpdates {
         Write-Host "- Optionele updates: $optionalCount" -ForegroundColor Yellow
         Write-LogMessage "Gevonden: $regularCount reguliere updates, $optionalCount optionele updates"
 
+        # Display detailed update information
+        if ($regularCount -gt 0) {
+            Write-Host "`nDetails van reguliere updates:" -ForegroundColor Yellow
+            foreach ($update in $regularUpdates) {
+                Write-Host "  * $($update.Title)" -ForegroundColor White
+                Write-Host "    - Grootte: $([math]::Round($update.Size / 1MB, 2)) MB" -ForegroundColor Gray
+                Write-Host "    - KB Nummer: $($update.KBArticleIDs)" -ForegroundColor Gray
+                Write-LogMessage "Update gevonden: $($update.Title) (KB$($update.KBArticleIDs))"
+            }
+        }
+
+        if ($optionalCount -gt 0) {
+            Write-Host "`nDetails van optionele updates:" -ForegroundColor Yellow
+            foreach ($update in $optionalUpdates) {
+                Write-Host "  * $($update.Title)" -ForegroundColor White
+                Write-Host "    - Grootte: $([math]::Round($update.Size / 1MB, 2)) MB" -ForegroundColor Gray
+                Write-Host "    - KB Nummer: $($update.KBArticleIDs)" -ForegroundColor Gray
+                Write-LogMessage "Optionele update gevonden: $($update.Title) (KB$($update.KBArticleIDs))"
+            }
+        }
+
+        # Create log directory if it doesn't exist
+        $logDir = Join-Path $env:TEMP "WindowsUpdateLogs"
+        if (-not (Test-Path $logDir)) {
+            New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+        }
+
+        # Define log paths
+        $regularUpdatesLog = Join-Path $logDir "Windows_Regular_Updates_Log.txt"
+        $optionalUpdatesLog = Join-Path $logDir "Windows_Optional_Updates_Log.txt"
+
         # Install updates concurrently
         $jobs = @()
 
         # Start regular updates
         if ($regularCount -gt 0) {
-            Write-Host "Reguliere updates worden geinstalleerd..." -ForegroundColor Yellow
+            Write-Host "`nReguliere updates worden geinstalleerd..." -ForegroundColor Yellow
             $jobs += Start-Job -ScriptBlock {
                 param($LogPath)
-                Import-Module PSWindowsUpdate
-                Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IgnoreReboot -Confirm:$false -Verbose *> $LogPath
-            } -ArgumentList (Join-Path $env:TEMP "Windows_Regular_Updates_Log.txt")
+                try {
+                    Import-Module PSWindowsUpdate
+                    $result = Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IgnoreReboot -Confirm:$false -Verbose *> $LogPath
+                    if ($result) {
+                        $result | ConvertTo-Json | Out-File "$LogPath.json"
+                    }
+                }
+                catch {
+                    "Error: $($_.Exception.Message)" | Out-File $LogPath -Append
+                    throw $_
+                }
+            } -ArgumentList $regularUpdatesLog
         }
 
         # Start optional updates
@@ -963,33 +1003,71 @@ function Install-WindowsUpdates {
             Write-Host "Optionele updates worden geinstalleerd..." -ForegroundColor Yellow
             $jobs += Start-Job -ScriptBlock {
                 param($LogPath)
-                Import-Module PSWindowsUpdate
-                Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IsHidden -IgnoreReboot -Confirm:$false -Verbose *> $LogPath
-            } -ArgumentList (Join-Path $env:TEMP "Windows_Optional_Updates_Log.txt")
+                try {
+                    Import-Module PSWindowsUpdate
+                    $result = Install-WindowsUpdate -AcceptAll -AutoReboot:$false -IsHidden -IgnoreReboot -Confirm:$false -Verbose *> $LogPath
+                    if ($result) {
+                        $result | ConvertTo-Json | Out-File "$LogPath.json"
+                    }
+                }
+                catch {
+                    "Error: $($_.Exception.Message)" | Out-File $LogPath -Append
+                    throw $_
+                }
+            } -ArgumentList $optionalUpdatesLog
         }
 
-        # Monitor progress
-        $totalJobs = $jobs.Count
-        while ($jobs | Where-Object { $_.State -eq 'Running' }) {
-            $completed = ($jobs | Where-Object { $_.State -eq 'Completed' }).Count
-            $progress = [math]::Round(($completed / $totalJobs) * 100)
-            
-            Show-Progress -Activity "Windows Updates" -Status "Installeren... ($completed/$totalJobs taken voltooid)" -PercentComplete $progress
-            Start-Sleep -Seconds 2
-        }
-
-        # Check for any failed jobs
-        $failedJobs = $jobs | Where-Object { $_.State -eq 'Failed' }
-        if ($failedJobs) {
-            foreach ($job in $failedJobs) {
-                $jobError = Receive-Job -Job $job -ErrorAction SilentlyContinue
-                Write-LogMessage "Update taak mislukt: $jobError"
+        # Monitor progress with enhanced status reporting
+        while ($jobs.State -contains "Running") {
+            foreach ($job in $jobs) {
+                if ($job.State -eq "Running") {
+                    $logPath = $job.ArgumentList
+                    if ($logPath -and (Test-Path $logPath)) {
+                        $latestLog = Get-Content $logPath -Tail 1 -ErrorAction SilentlyContinue
+                        if ($latestLog) {
+                            Write-Host "Status: $latestLog" -ForegroundColor Gray
+                        }
+                    }
+                }
             }
-            Write-Host "Sommige updates zijn mogelijk niet geinstalleerd" -ForegroundColor Yellow
+            Start-Sleep -Seconds 10
         }
 
-        # Cleanup jobs
-        $jobs | Remove-Job -Force
+        # Process results
+        foreach ($job in $jobs) {
+            $logPath = $job.ArgumentList
+            if ($logPath) {
+                $jsonPath = "$logPath.json"
+                
+                # Check for errors in the log file
+                if (Test-Path $logPath) {
+                    $errorContent = Get-Content $logPath | Where-Object { $_ -like "*Error:*" }
+                    if ($errorContent) {
+                        Write-Host "Fout bij update installatie:" -ForegroundColor Red
+                        Write-Host $errorContent -ForegroundColor Red
+                        Write-LogMessage "Update fout: $errorContent"
+                    }
+                }
+                
+                # Process successful updates
+                if (Test-Path $jsonPath) {
+                    $updateResults = Get-Content $jsonPath | ConvertFrom-Json
+                    Write-Host "`nGeinstalleerde updates:" -ForegroundColor Green
+                    foreach ($update in $updateResults) {
+                        Write-Host "  * $($update.Title) - Status: $($update.Result)" -ForegroundColor White
+                        Write-LogMessage "Update geinstalleerd: $($update.Title) - Status: $($update.Result)"
+                    }
+                }
+            }
+            
+            # Cleanup job
+            Remove-Job $job -Force
+        }
+
+        # Cleanup log files
+        if (Test-Path $logDir) {
+            Get-ChildItem $logDir -Filter "Windows_*_Updates_Log*" | Remove-Item -Force
+        }
         
         Write-Host "Alle Windows Updates succesvol geinstalleerd (regulier en optioneel)" -ForegroundColor Green
         Write-LogMessage "Alle Windows Updates succesvol geinstalleerd"
