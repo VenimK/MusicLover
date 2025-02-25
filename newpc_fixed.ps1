@@ -151,9 +151,15 @@ function Test-ScriptDependencies {
             $osInfo = Get-WmiObject -Class Win32_OperatingSystem
             $windowsVersion = [System.Version]($osInfo.Version)
             
-            # Windows 11 or Windows 10 1809 or later should have winget available
+            # For Windows 11 (build 22000 or higher), winget should be pre-installed
+            if ($windowsVersion.Build -ge 22000) {
+                Write-Host "Windows 11 gedetecteerd. Winget zou pre-geïnstalleerd moeten zijn." -ForegroundColor Yellow
+                Write-Host "Controleer of de App Installer correct is geïnstalleerd via de Microsoft Store." -ForegroundColor Yellow
+                return $false
+            }
+            
+            # For Windows 10 1809 or later
             if ($windowsVersion.Major -eq 10 -and $windowsVersion.Build -ge 17763) {
-                # On supported Windows versions, winget should be available through Microsoft Store
                 return $false
             }
             
@@ -1328,10 +1334,38 @@ function Restore-DefaultPowerSettings {
 # Function to install Winget
 function Install-Winget {
     try {
+        # Check if we're on Windows 11
+        $osInfo = Get-WmiObject -Class Win32_OperatingSystem
+        $windowsVersion = [System.Version]($osInfo.Version)
+        $isWindows11 = $windowsVersion.Build -ge 22000
+
+        # If on Windows 11 and winget is missing, try to repair App Installer first
+        if ($isWindows11) {
+            Write-Host "Windows 11 gedetecteerd, controleren op App Installer..." -ForegroundColor Yellow
+            Write-LogMessage "Windows 11 gedetecteerd, App Installer controle"
+            
+            try {
+                # Try to get App Installer from Microsoft Store
+                $appInstaller = Get-AppxPackage -Name "Microsoft.DesktopAppInstaller"
+                if (-not $appInstaller) {
+                    Write-Host "App Installer niet gevonden, proberen te installeren via Microsoft Store..." -ForegroundColor Yellow
+                    Start-Process "ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1"
+                    Write-Host "Microsoft Store geopend. Installeer de 'App Installer' en start dit script opnieuw." -ForegroundColor Cyan
+                    return $false
+                } else {
+                    # Try to repair existing App Installer
+                    Write-Host "App Installer gevonden, proberen te repareren..." -ForegroundColor Yellow
+                    Add-AppxPackage -RegisterByFamilyName -MainPackage $appInstaller.PackageFamilyName -DisableDevelopmentMode
+                }
+            } catch {
+                Write-Host "Fout bij App Installer controle: $($_.Exception.Message)" -ForegroundColor Red
+                Write-LogMessage "Fout bij App Installer controle: $($_.Exception.Message)"
+            }
+        }
+
         Write-Host "`nWinget installatie starten..." -ForegroundColor Yellow
         Write-LogMessage "Start Winget installatie"
-
-        # Start progress
+        
         Show-Progress -Activity "Winget Installatie" -Status "Voorbereiden..." -PercentComplete 0
 
         # Install prerequisites
@@ -1658,7 +1692,6 @@ function Install-MicrosoftOffice {
                 if (Test-Path $testPath) {
                     $odtPath = $testPath
                     $odtFound = $true
-                    Write-Host "Office map gevonden op USB drive $($drive.DeviceID)" -ForegroundColor Green
                     break
                 }
             }
@@ -1672,7 +1705,6 @@ function Install-MicrosoftOffice {
                 if (Test-Path $testPath) {
                     $odtPath = $testPath
                     $odtFound = $true
-                    Write-Host "Office map gevonden op vaste schijf $($drive.DeviceID)" -ForegroundColor Green
                     break
                 }
             }
@@ -1961,17 +1993,38 @@ try {
         } else {
             # Install if not present
             Write-Host "$($software.Id) wordt geinstalleerd..." -ForegroundColor Yellow
-            if ($software.WingetArgs) {
-                winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
-            } else {
-                winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+            
+            $retryCount = 0
+            $maxRetries = if ($software.RetryCount) { $software.RetryCount } else { 1 }
+            $success = $false
+            
+            while (-not $success -and $retryCount -lt $maxRetries) {
+                if ($retryCount -gt 0) {
+                    Write-Host "Poging $($retryCount + 1) van $maxRetries..." -ForegroundColor Yellow
+                }
+                
+                if ($software.WingetArgs) {
+                    winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements @($software.WingetArgs)
+                } else {
+                    winget install --id $software.Id --exact --silent --accept-source-agreements --accept-package-agreements
+                }
+                
+                if ($LASTEXITCODE -eq 0) {
+                    $success = $true
+                    Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
+                    Write-LogMessage "$($software.Id) installatie succesvol"
+                } else {
+                    $retryCount++
+                    if ($retryCount -lt $maxRetries) {
+                        Write-Host "Installatie mislukt, opnieuw proberen..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds 2
+                    }
+                }
             }
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "$($software.Id) succesvol geinstalleerd" -ForegroundColor Green
-                Write-LogMessage "$($software.Id) installatie succesvol"
-            } else {
-                Write-Host "Waarschuwing: $($software.Id) installatie mislukt" -ForegroundColor Yellow
-                Write-LogMessage "$($software.Id) installatie mislukt"
+            
+            if (-not $success) {
+                Write-Host "Waarschuwing: $($software.Id) installatie mislukt na $maxRetries pogingen" -ForegroundColor Yellow
+                Write-LogMessage "$($software.Id) installatie mislukt na $maxRetries pogingen"
             }
         }
     }
