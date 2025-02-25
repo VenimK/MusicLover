@@ -1,1 +1,0 @@
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://gist.githubusercontent.com/VenimK/246a96a920c401f88a9c37e41c8d00e5/raw/newpc_fixed.ps1' -OutFile '$env:TEMP\newpc_fixed.ps1'; & '$env:TEMP\newpc_fixed.ps1'"
