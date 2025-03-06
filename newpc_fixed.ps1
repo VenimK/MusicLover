@@ -23,9 +23,6 @@
 .PARAMETER WifiPassword
     Het wachtwoord voor het WiFi netwerk. Moet worden aangeleverd als SecureString voor veiligheid.
 
-.PARAMETER Verbose
-    Schakel uitgebreide logging in voor gedetailleerde informatie.
-
 .PARAMETER DryRun
     Voer het script uit zonder daadwerkelijke wijzigingen (test modus).
 
@@ -91,21 +88,19 @@
 
 #>
 
-# Script parameters
+[CmdletBinding()]
 param(
     [switch]$SkipWindowsUpdates,
     [string]$WifiSSID,
     [SecureString]$WifiPassword,
-    [switch]$Verbose,
     [switch]$DryRun,
-    [switch]$SkipNodeJSInstallation,     # Sla Stap 10: Node.js installatie over
-    [switch]$SkipNpmPackages,            # Sla Stap 11: NPM packages installeren over
-    [switch]$SkipNodeServer,             # Sla Stap 12: Server starten over
-    [switch]$SkipIndexOpen,              # Sla Stap 13: Index openen over
-    [switch]$RunNodeJSInstallation,     # Forceer Stap 10: Node.js installatie
-    [switch]$RunNpmPackages,            # Forceer Stap 11: NPM packages installeren
-    [switch]$RunNodeServer,             # Forceer Stap 12: Server starten
-    [switch]$RunIndexOpen               # Forceer Stap 13: Index openen
+    [switch]$SkipNodeJSInstallation,
+    [switch]$SkipNpmPackages,
+    [switch]$SkipNodeServer,
+    [switch]$SkipIndexOpen,
+    [switch]$RunNodeJSInstallation,
+    [switch]$RunNpmPackages,
+    [switch]$RunNodeServer
 )
 
 # Function to check if running as administrator
@@ -1869,11 +1864,16 @@ try {
     $global:ClientNumber = Get-ClientNumber
 
     # Stap 4: Windows Updates
-    Write-Host "`nStap 4: Windows Updates installeren" -ForegroundColor Yellow
-    Install-WindowsUpdateModule
-    Install-WindowsUpdates
-    
-    Send-TextbeeSMS -Message "Window Updates Compleet voor client $global:ClientNumber" 
+    if (-not $SkipWindowsUpdates) {
+        Write-Host "`nStap 4: Windows Updates installeren" -ForegroundColor Yellow
+        Install-WindowsUpdateModule
+        Install-WindowsUpdates
+        
+        Send-TextbeeSMS -Message "Window Updates Compleet voor client $global:ClientNumber" 
+    } else {
+        Write-Host "`nStap 4: Windows Updates worden overgeslagen (SkipWindowsUpdates parameter)" -ForegroundColor Yellow
+        Write-LogMessage "Windows Updates overgeslagen door SkipWindowsUpdates parameter"
+    }
 
     # Stap 5: Microsoft Office installatie
     Write-Host "`nStap 5: Microsoft Office installatie" -ForegroundColor Yellow
