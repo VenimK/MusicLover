@@ -9,6 +9,87 @@ const config = require('./config');
 const app = express();
 const port = 3000;
 
+// Language translations
+const translations = {
+    nl: {
+        serverStarting: 'Server configuratie wordt gestart...',
+        emailVerifying: 'E-mailconfiguratie wordt geverifieerd...',
+        emailError: 'E-mailconfiguratie Fout:',
+        errorDetails: 'Foutdetails:',
+        emailReady: 'E-mailserver is klaar om berichten te verzenden',
+        emailRequired: 'E-mailadres is verplicht',
+        invalidEmail: 'Ongeldig e-mailadres formaat',
+        pdfRequired: 'PDF bestand is verplicht',
+        pdfEmpty: 'PDF bestand is leeg',
+        requestReceived: 'PDF upload verzoek ontvangen',
+        requestData: 'Verzoekgegevens:',
+        receiverEmail: 'ontvangerEmail',
+        customerName: 'klantNaam',
+        customerNumber: 'klantNummer',
+        pdfSize: 'pdfGrootte',
+        noPdfReceived: 'Geen PDF ontvangen',
+        unknown: 'Onbekend',
+        emailSubject: 'Computer Gegevens - Klantnummer',
+        emailText: 'Beste {clientName},\n\nHierbij vindt u uw computer gegevens in de bijlage.\n\nMet vriendelijke groeten,\nMusic Lover Team',
+        sendingEmail: 'E-mail wordt verzonden...',
+        emailSendError: 'Fout bij verzenden e-mail:',
+        serverError: 'Server Fout:'
+    },
+    en: {
+        serverStarting: 'Server configuration starting...',
+        emailVerifying: 'Verifying email configuration...',
+        emailError: 'Email Configuration Error:',
+        errorDetails: 'Error Details:',
+        emailReady: 'Email server is ready to send messages',
+        emailRequired: 'Email address is required',
+        invalidEmail: 'Invalid email format',
+        pdfRequired: 'PDF file is required',
+        pdfEmpty: 'PDF file is empty',
+        requestReceived: 'PDF upload request received',
+        requestData: 'Request Data:',
+        receiverEmail: 'receiverEmail',
+        customerName: 'customerName',
+        customerNumber: 'customerNumber',
+        pdfSize: 'pdfSize',
+        noPdfReceived: 'No PDF received',
+        unknown: 'Unknown',
+        emailSubject: 'Computer Details - Customer Number',
+        emailText: 'Dear {clientName},\n\nPlease find your computer details attached.\n\nBest regards,\nMusic Lover Team',
+        sendingEmail: 'Sending email...',
+        emailSendError: 'Error sending email:',
+        serverError: 'Server Error:'
+    }
+};
+
+// Function to get translation based on user's language
+function getText(key, lang = 'nl') {
+    const userLang = translations[lang] ? lang : 'en';
+    return translations[userLang][key] || translations['en'][key];
+}
+
+// Get system language
+function getSystemLanguage() {
+    try {
+        // Get system language from environment variables
+        const sysLang = (process.env.LANG || process.env.LANGUAGE || process.env.LC_ALL || process.env.LC_MESSAGES || '').toLowerCase();
+        
+        // For Windows, check the user's preferred language setting
+        if (!sysLang && process.platform === 'win32') {
+            const userLocale = process.env.USERLANGUAGE || process.env.LANG || '';
+            return userLocale.toLowerCase().startsWith('nl') ? 'nl' : 'en';
+        }
+        
+        return sysLang.startsWith('nl') ? 'nl' : 'en';
+    } catch (error) {
+        console.log('Error getting system language, defaulting to English:', error);
+        return 'en';
+    }
+}
+
+// Set the application-wide language based on system settings
+const systemLanguage = getSystemLanguage();
+console.log(`System language detected: ${systemLanguage}`);
+
 // Configure multer for handling file uploads
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -23,12 +104,13 @@ app.use(express.json());
 
 // Add request logging middleware with timestamp
 app.use((req, res, next) => {
-    const timestamp = new Date().toLocaleString('nl-BE');
+    req.userLang = systemLanguage;
+    const timestamp = new Date().toLocaleString(req.userLang === 'nl' ? 'nl-BE' : 'en-US');
     console.log(`[${timestamp}] ${req.method} ${req.path}`);
     next();
 });
 
-console.log('Server configuratie wordt gestart...');
+console.log(getText('serverStarting'));
 
 // Configure email transporter
 const transporter = nodemailer.createTransport({
@@ -40,19 +122,19 @@ const transporter = nodemailer.createTransport({
 });
 
 // Verify transporter configuration
-console.log('E-mailconfiguratie wordt geverifieerd...');
+console.log(getText('emailVerifying'));
 transporter.verify(function(error, success) {
     if (error) {
-        console.error('E-mailconfiguratie Fout:', error);
-        console.error('Foutdetails:', {
+        console.error(getText('emailError'), error);
+        console.error(getText('errorDetails'), {
             code: error.code,
-            opdracht: error.command,
-            antwoordCode: error.responseCode,
-            antwoord: error.response
+            command: error.command,
+            responseCode: error.responseCode,
+            response: error.response
         });
-        process.exit(1); // Exit if email configuration fails
+        process.exit(1);
     } else {
-        console.log('E-mailserver is klaar om berichten te verzenden');
+        console.log(getText('emailReady'));
     }
 });
 
@@ -63,28 +145,28 @@ const validateEmailRequest = (req, res, next) => {
     if (!email) {
         return res.status(400).json({ 
             success: false, 
-            message: 'E-mailadres is verplicht' 
+            message: getText('emailRequired', req.userLang)
         });
     }
 
     if (!email.includes('@')) {
         return res.status(400).json({ 
             success: false, 
-            message: 'Ongeldig e-mailadres formaat' 
+            message: getText('invalidEmail', req.userLang)
         });
     }
 
     if (!req.file) {
         return res.status(400).json({ 
             success: false, 
-            message: 'PDF bestand is verplicht' 
+            message: getText('pdfRequired', req.userLang)
         });
     }
 
     if (!req.file.buffer || req.file.buffer.length === 0) {
         return res.status(400).json({ 
             success: false, 
-            message: 'PDF bestand is leeg' 
+            message: getText('pdfEmpty', req.userLang)
         });
     }
 
@@ -93,22 +175,22 @@ const validateEmailRequest = (req, res, next) => {
 
 // Endpoint to handle PDF upload and email sending
 app.post('/send-pdf', upload.single('pdf'), validateEmailRequest, async (req, res) => {
-    console.log('PDF upload verzoek ontvangen');
+    console.log(getText('requestReceived', req.userLang));
     const startTime = Date.now();
 
     try {
         const { email, clientName, clientNumber } = req.body;
-        console.log('Verzoekgegevens:', {
-            ontvangerEmail: email,
-            klantNaam: clientName,
-            klantNummer: clientNumber,
-            pdfGrootte: req.file ? `${(req.file.size / 1024).toFixed(2)} KB` : 'Geen PDF ontvangen'
+        console.log(getText('requestData', req.userLang), {
+            [getText('receiverEmail', req.userLang)]: email,
+            [getText('customerName', req.userLang)]: clientName,
+            [getText('customerNumber', req.userLang)]: clientNumber,
+            [getText('pdfSize', req.userLang)]: req.file ? `${(req.file.size / 1024).toFixed(2)} KB` : getText('noPdfReceived', req.userLang)
         });
 
         const pdfBuffer = req.file.buffer;
 
-        // Get current date in Dutch format
-        const currentDate = new Date().toLocaleDateString('nl-BE', {
+        // Get current date in user's language format
+        const currentDate = new Date().toLocaleDateString(req.userLang === 'nl' ? 'nl-BE' : 'en-US', {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
@@ -128,8 +210,8 @@ app.post('/send-pdf', upload.single('pdf'), validateEmailRequest, async (req, re
                 address: 'info@musiclover.be'
             },
             to: email,
-            subject: `Computer Gegevens - Klantnummer ${clientNumber || 'Onbekend'}`,
-            text: `Beste ${clientName || 'klant'},\n\nHierbij vindt u uw computer gegevens in de bijlage.\n\nMet vriendelijke groeten,\nMusic Lover Team`,
+            subject: `${getText('emailSubject', req.userLang)} ${clientNumber || getText('unknown', req.userLang)}`,
+            text: getText('emailText', req.userLang).replace('{clientName}', clientName || getText('unknown', req.userLang)),
             html: `
                 <!DOCTYPE html>
                 <html>
@@ -251,13 +333,13 @@ app.post('/send-pdf', upload.single('pdf'), validateEmailRequest, async (req, re
                 </html>
             `,
             attachments: [{
-                filename: `Computer_Gegevens_${clientNumber || 'Onbekend'}.pdf`,
+                filename: `Computer_${req.userLang === 'nl' ? 'Gegevens' : 'Details'}_${clientNumber || getText('unknown', req.userLang)}.pdf`,
                 content: pdfBuffer,
                 contentType: 'application/pdf'
             }]
         };
 
-        console.log('E-mail wordt verzonden...');
+        console.log(getText('sendingEmail', req.userLang));
         await transporter.sendMail(mailOptions);
         
         const endTime = Date.now();
@@ -265,7 +347,7 @@ app.post('/send-pdf', upload.single('pdf'), validateEmailRequest, async (req, re
         
         res.json({ 
             success: true, 
-            message: 'E-mail succesvol verzonden',
+            message: getText('emailReady', req.userLang),
             duration: `${(endTime - startTime)/1000}s`
         });
 
@@ -279,22 +361,18 @@ app.post('/send-pdf', upload.single('pdf'), validateEmailRequest, async (req, re
         }, 1500); // Increased to 1.5s for more reliable response delivery
 
     } catch (error) {
-        console.error('Fout bij verzenden e-mail:', {
-            foutmelding: error.message,
+        console.error(getText('emailSendError', req.userLang), {
+            message: error.message,
             stack: error.stack,
             code: error.code,
-            opdracht: error.command,
-            antwoordCode: error.responseCode,
-            antwoord: error.response
         });
         
         res.status(500).json({ 
             success: false, 
-            message: 'Fout bij verzenden e-mail',
+            message: getText('emailError', req.userLang),
             error: {
                 melding: error.message,
                 code: error.code,
-                antwoord: error.response
             }
         });
 
@@ -310,10 +388,10 @@ app.post('/send-pdf', upload.single('pdf'), validateEmailRequest, async (req, re
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error('Server Fout:', err);
+    console.error(getText('serverError', req.userLang), err);
     res.status(500).json({ 
         success: false, 
-        message: 'Server fout',
+        message: getText('serverError', req.userLang),
         error: err.message 
     });
 });
