@@ -4,6 +4,16 @@ Dit script automatiseert de installatie en configuratie van nieuwe Windows PC's 
 
 ## Functionaliteiten
 
+- **Taaldetectie en Vertalingen**
+  - Automatische detectie van systeemtaal
+  - Ondersteuning voor Nederlands en Engels
+  - Vertaalde gebruikersberichten
+
+- **SMS Notificaties**
+  - Integratie met Textbee API
+  - Automatische notificaties bij belangrijke gebeurtenissen
+  - Configureerbare ontvanger voor notificaties
+
 - **Energie-instellingen**
   - Optimaliseert energie-instellingen voor desktop gebruik
   - Voorkomt slaapstand tijdens installatie
@@ -42,25 +52,25 @@ Dit script automatiseert de installatie en configuratie van nieuwe Windows PC's 
 
 1. Voer het script uit met standaardinstellingen:
    ```powershell
-   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\newpc_fixed.ps1"
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\newpc.ps1"
    ```
 
 ## Gebruiksvoorbeelden
 
 ### Basis Gebruik
 ```powershell
-.\newpc_fixed.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\newpc.ps1"
 ```
 
 ### Met WiFi Configuratie
 ```powershell
 $wachtwoord = Read-Host -AsSecureString "Voer WiFi wachtwoord in"
-.\newpc_fixed.ps1 -WifiSSID "BedrijfsWiFi" -WifiPassword $wachtwoord
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\newpc.ps1" -WifiSSID "BedrijfsWiFi" -WifiPassword $wachtwoord
 ```
 
 ### Specifieke Stappen Overslaan
 ```powershell
-.\newpc_fixed.ps1 -SkipWindowsUpdates -SkipNodeJSInstallation
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\newpc.ps1" -SkipWindowsUpdates -SkipNodeJSInstallation
 ```
 
 ## Parameters
@@ -73,6 +83,37 @@ $wachtwoord = Read-Host -AsSecureString "Voer WiFi wachtwoord in"
 | `-Verbose` | Toon gedetailleerde logging |
 | `-DryRun` | Test modus - geen echte wijzigingen |
 | `-SkipNodeJSInstallation` | Sla Node.js installatie over |
+| `-SkipSMSNotification` | Sla SMS notificaties over |
+
+## Taalondersteuning
+
+Het script detecteert automatisch de systeemtaal en toont berichten in de juiste taal:
+
+- **Nederlands (nl)**: Standaardtaal
+- **Engels (en)**: Automatisch gebruikt op Engelstalige systemen
+
+Als de systeemtaal niet wordt ondersteund, valt het script terug op Engels.
+
+## SMS Configuratie
+
+Het script kan SMS notificaties versturen via de Textbee API bij belangrijke gebeurtenissen:
+
+- Installatie gestart
+- Installatie voltooid
+- Kritieke fouten
+
+De configuratie wordt beheerd in het `sms_config.ps1` bestand:
+```powershell
+# Textbee API configuratie
+$TEXTBEE_DEVICE_ID = "jouw_device_id"
+$TEXTBEE_API_KEY = "jouw_api_key"
+$TEXTBEE_NOTIFICATION_PHONE = "+32xxxxxxxxx"
+```
+
+Om deze functie te gebruiken, moet je:
+1. Een Textbee account hebben
+2. De juiste API gegevens invullen in het configuratiebestand
+3. Het script uitvoeren zonder de `-SkipSMSNotification` parameter
 
 ## Logging
 
@@ -121,6 +162,11 @@ Het script maakt gedetailleerde logbestanden aan op:
 Voor ondersteuning, [maak een issue aan](https://github.com/VenimK/MusicLover/issues) of neem contact op met je systeembeheerder.
 
 ## Wijzigingslog
+
+### Versie 2.1 (2025-03-06)
+- Toegevoegd: Automatische taaldetectie (Nederlands/Engels)
+- Toegevoegd: Vertaalsysteem voor gebruikersberichten
+- Verbeterd: Gebruikerservaring in verschillende talen
 
 ### Versie 2.0 (2025-01-17)
 - Toegevoegd: veilige wachtwoordverwerking
