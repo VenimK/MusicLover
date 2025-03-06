@@ -100,7 +100,8 @@ param(
     [switch]$SkipIndexOpen,
     [switch]$RunNodeJSInstallation,
     [switch]$RunNpmPackages,
-    [switch]$RunNodeServer
+    [switch]$RunNodeServer,
+    [switch]$RunIndexOpen
 )
 
 # Function to check if running as administrator
@@ -1838,46 +1839,113 @@ Add-Type @"
     }
 "@ 
 
+# Function to get system language
+function Get-SystemLanguage {
+    try {
+        # Get the current system culture
+        $systemCulture = Get-Culture
+        Write-Host "Detected system culture: $($systemCulture.Name)"
+        
+        # Get the current UI culture
+        $uiCulture = Get-UICulture
+        Write-Host "Detected UI culture: $($uiCulture.Name)"
+        
+        # Check if any of them are Dutch
+        if ($systemCulture.Name.StartsWith('nl') -or $uiCulture.Name.StartsWith('nl')) {
+            Write-Host "Dutch language detected, using Dutch"
+            return 'nl'
+        } else {
+            Write-Host "Non-Dutch language detected, using English"
+            return 'en'
+        }
+    }
+    catch {
+        Write-Host "Error detecting system language, defaulting to English: $($_.Exception.Message)" -ForegroundColor Yellow
+        return 'en'
+    }
+}
+
+# Language settings and translations
+$script:SystemLanguage = Get-SystemLanguage
+
+$script:Translations = @{
+    'nl' = @{
+        'welcome' = "=== Windows PC Setup Script ==="
+        'step1' = "Stap 1: Energiebeheer instellen..."
+        'step2' = "Stap 2: Netwerk configureren..."
+        'step3' = "Stap 3: Windows updates controleren..."
+        'step4' = "Stap 4: Software installeren..."
+        'step5' = "Stap 5: Node.js omgeving instellen..."
+        'winget_installed' = "Winget is reeds geïnstalleerd, ga door naar volgende stap..."
+        'winget_not_found' = "Winget is niet gevonden, start installatie..."
+        'error_occurred' = "Er is een fout opgetreden: {0}"
+    }
+    'en' = @{
+        'welcome' = "=== Windows PC Setup Script ==="
+        'step1' = "Step 1: Configuring Power Management..."
+        'step2' = "Step 2: Configuring Network..."
+        'step3' = "Step 3: Checking Windows Updates..."
+        'step4' = "Step 4: Installing Software..."
+        'step5' = "Step 5: Setting up Node.js environment..."
+        'winget_installed' = "Winget is already installed, proceeding to next step..."
+        'winget_not_found' = "Winget not found, starting installation..."
+        'error_occurred' = "An error occurred: {0}"
+    }
+}
+
+function Get-TranslatedText {
+    param(
+        [string]$Key,
+        [array]$Parameters = @()
+    )
+    
+    $text = $script:Translations[$script:SystemLanguage][$Key]
+    if ($Parameters.Count -gt 0) {
+        return [string]::Format($text, $Parameters)
+    }
+    return $text
+}
+
 # Main script execution
 try {
-    Write-Host "=== Windows PC Setup Script ===" -ForegroundColor Cyan
+    Write-Host (Get-TranslatedText 'welcome') -ForegroundColor Cyan
     Write-LogMessage "Script gestart"
 
     # Stap 1: Execution Policy
-    Write-Host "`nStap 1: Execution Policy instellen..." -ForegroundColor Yellow
+    Write-Host "`n" + (Get-TranslatedText 'step1') -ForegroundColor Yellow
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
     Write-LogMessage "Execution Policy ingesteld op Bypass"
 
     # Stap 2: Energie-instellingen optimaliseren
-    Write-Host "`nStap 2: Energie-instellingen optimaliseren..." -ForegroundColor Yellow
+    Write-Host "`n" + (Get-TranslatedText 'step2') -ForegroundColor Yellow
     Set-OptimalPowerSettings
 
     # Stap 3: Netwerk verbinding
-    Write-Host "`nStap 3: Netwerk verbinding..." -ForegroundColor Yellow
+    Write-Host "`n" + (Get-TranslatedText 'step3') -ForegroundColor Yellow
     $networkParams = @{}
     if ($WifiSSID) { $networkParams['WifiSSID'] = $WifiSSID }
     if ($WifiPassword) { $networkParams['WifiPassword'] = $WifiPassword }
     Connect-Network @networkParams
     
     # Stap 3b: Klantnummer invoeren
-    Write-Host "`nStap 3b: Klantnummer invoeren..." -ForegroundColor Yellow
+    Write-Host "`n" + (Get-TranslatedText 'step4') -ForegroundColor Yellow
     $global:ClientNumber = Get-ClientNumber
 
     # Stap 4: Windows Updates
     if (-not $SkipWindowsUpdates) {
-        Write-Host "`nStap 4: Windows Updates installeren" -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         Install-WindowsUpdateModule
         Install-WindowsUpdates
         
-        Send-TextbeeSMS -Message "Window Updates Compleet voor client $global:ClientNumber" 
+        Send-TextbeeSMS -Message (Get-TranslatedText 'error_occurred' -Parameters @("Windows Updates compleet voor client $global:ClientNumber"))
     } else {
-        Write-Host "`nStap 4: Windows Updates worden overgeslagen (SkipWindowsUpdates parameter)" -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         Write-LogMessage "Windows Updates overgeslagen door SkipWindowsUpdates parameter"
     }
 
     # Stap 5: Microsoft Office installatie
-    Write-Host "`nStap 5: Microsoft Office installatie" -ForegroundColor Yellow
-    Write-Host "Kies een Office versie om te installeren:" -ForegroundColor Cyan
+    Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
+    Write-Host (Get-TranslatedText 'welcome') -ForegroundColor Cyan
     Write-Host "1. Microsoft 365 Business"
     Write-Host "2. Office 2021"
     Write-Host "3. Office 2024"
@@ -1911,42 +1979,42 @@ try {
         }
         default {
             if ($choice) {
-                Write-Host "Office installatie overgeslagen." -ForegroundColor Yellow
+                Write-Host (Get-TranslatedText 'error_occurred' -Parameters @("Office installatie overgeslagen")) -ForegroundColor Yellow
                 Write-LogMessage "Office installatie overgeslagen door gebruiker"
             } else {
-                Write-Host "Geen keuze gemaakt binnen 30 seconden. Office installatie overgeslagen." -ForegroundColor Yellow
+                Write-Host (Get-TranslatedText 'error_occurred' -Parameters @("Geen keuze gemaakt binnen 30 seconden. Office installatie overgeslagen")) -ForegroundColor Yellow
                 Write-LogMessage "Office installatie overgeslagen: timeout"
             }
         }
     }
 
     # Stap 6: Winget installatie
-    Write-Host "`nStap 6: Winget controleren..." -ForegroundColor Yellow
+    Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Write-Host "Winget is reeds geinstalleerd, ga door naar volgende stap..." -ForegroundColor Green
+        Write-Host (Get-TranslatedText 'winget_installed') -ForegroundColor Green
         Write-LogMessage "Winget is reeds geinstalleerd"
     } else {
-        Write-Host "Winget is niet gevonden, start installatie..." -ForegroundColor Yellow
+        Write-Host (Get-TranslatedText 'winget_not_found') -ForegroundColor Yellow
         if (-not (Install-Winget)) {
-            Write-Host "Winget installatie mislukt, maar script gaat door..." -ForegroundColor Yellow
+            Write-Host (Get-TranslatedText 'error_occurred' -Parameters @("Winget installatie mislukt")) -ForegroundColor Yellow
             Write-LogMessage "Winget installatie mislukt, script gaat door"
         }
     }
 
     # Stap 6b: Notepad++ installatie
-    Write-Host "`nStap 6b: Notepad++ installeren..." -ForegroundColor Cyan
+    Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Cyan
     Write-LogMessage "Start Stap 6b: Notepad++ installatie"
     if (-not (Install-NotepadPlusPlus)) {
-        Write-Host "Notepad++ installatie mislukt, maar we gaan door..." -ForegroundColor Yellow
+        Write-Host (Get-TranslatedText 'error_occurred' -Parameters @("Notepad++ installatie mislukt")) -ForegroundColor Yellow
         Write-LogMessage "Notepad++ installatie mislukt, script gaat door"
     }
     
     # Stap 7: Winget software installatie
-    Write-Host "`nStap 7: Winget software installeren..." -ForegroundColor Yellow
+    Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
     Install-WingetSoftware
 
     # Stap 8: Adobe Reader installeren
-    Write-Host "`nStap 8: Adobe Reader installatie..." -ForegroundColor Yellow
+    Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
     $softwareList = @(
         @{
             Id = "Adobe.Acrobat.Reader.64-bit"
@@ -1957,7 +2025,7 @@ try {
         }
     )
     foreach ($software in $softwareList) {
-        Write-Host "`nControleren $($software.Id)..." -ForegroundColor Cyan
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Cyan
         Write-LogMessage "Start controle van $($software.Id)"
         
         # Check if already installed through registry or file paths
@@ -2031,10 +2099,10 @@ try {
 
     # Stap 9: Node.js installatie
     if ($SkipNodeJSInstallation) {
-        Write-Host "`nStap 9: Node.js installatie overgeslagen (SkipNodeJSInstallation parameter gebruikt)..." -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         Write-LogMessage "Node.js installatie overgeslagen door SkipNodeJSInstallation parameter"
     } else {
-        Write-Host "`nStap 9: Node.js installatie controleren..." -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         if (-not (Test-NodeJS)) {
             Write-Host "Node.js niet gevonden. Installatie starten..." -ForegroundColor Yellow
             if (-not (Install-NodeJS)) {
@@ -2050,7 +2118,7 @@ try {
 
     # Extra Node.js installatie indien RunNodeJSInstallation is ingesteld
     if ($RunNodeJSInstallation) {
-        Write-Host "`nExtra Node.js installatie geforceerd..." -ForegroundColor Green
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Green
         Write-LogMessage "Extra Node.js installatie geforceerd"
         if (-not (Install-NodeJS)) {
             throw "Extra Node.js installatie mislukt"
@@ -2064,10 +2132,10 @@ try {
 
     # Stap 10: NPM packages installeren
     if ($SkipNpmPackages) {
-        Write-Host "`nStap 10: NPM packages installatie overgeslagen (SkipNpmPackages parameter gebruikt)..." -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         Write-LogMessage "NPM packages installatie overgeslagen door SkipNpmPackages parameter"
     } else {
-        Write-Host "`nStap 10: NPM packages installeren..." -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         if (-not (Install-NpmPackages)) {
             throw "NPM packages installatie mislukt"
         }
@@ -2075,7 +2143,7 @@ try {
 
     # Extra NPM packages indien RunNpmPackages is ingesteld
     if ($RunNpmPackages) {
-        Write-Host "`nExtra NPM packages installatie geforceerd..." -ForegroundColor Green
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Green
         Write-LogMessage "Extra NPM packages installatie geforceerd"
         if (-not (Install-NpmPackages)) {
             throw "Extra NPM packages installatie mislukt"
@@ -2084,10 +2152,10 @@ try {
 
     # Stap 11: Server starten
     if ($SkipNodeServer) {
-        Write-Host "`nStap 11: Node.js server starten overgeslagen (SkipNodeServer parameter gebruikt)..." -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         Write-LogMessage "Node.js server starten overgeslagen door SkipNodeServer parameter"
     } else {
-        Write-Host "`nStap 11: Node.js server starten..." -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         if (-not (Start-NodeServer)) {
             throw "Server starten mislukt"
         }
@@ -2095,7 +2163,7 @@ try {
 
     # Extra Node.js server start indien RunNodeServer is ingesteld
     if ($RunNodeServer) {
-        Write-Host "`nExtra Node.js server start geforceerd..." -ForegroundColor Green
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Green
         Write-LogMessage "Extra Node.js server start geforceerd"
         if (-not (Start-NodeServer)) {
             throw "Extra server starten mislukt"
@@ -2104,41 +2172,41 @@ try {
 
     # Stap 12: Index openen
     if ($SkipIndexOpen) {
-        Write-Host "`nStap 12: Index openen overgeslagen (SkipIndexOpen parameter gebruikt)..." -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         Write-LogMessage "Index openen overgeslagen door SkipIndexOpen parameter"
     } else {
-        Write-Host "`nStap 12: Index openen..." -ForegroundColor Yellow
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
         Open-IndexFile
     }
 
     # Extra Index openen indien RunIndexOpen is ingesteld
     if ($RunIndexOpen) {
-        Write-Host "`nExtra Index openen geforceerd..." -ForegroundColor Green
+        Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Green
         Write-LogMessage "Extra Index openen geforceerd"
         Open-IndexFile
     }
 
     # Stap 13: Energie-instellingen terugzetten
-    Write-Host "`nStap 13: Energie-instellingen terugzetten..." -ForegroundColor Yellow
+    Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
     Restore-DefaultPowerSettings
 
-    Write-Host "`nSetup succesvol afgerond!" -ForegroundColor Green
+    Write-Host "`n" + (Get-TranslatedText 'welcome') -ForegroundColor Green
     Write-LogMessage "Script succesvol afgerond"
 
     # Success notification
-    Write-Host "`nScript succesvol uitgevoerd!" -ForegroundColor Green
+    Write-Host "`n" + (Get-TranslatedText 'welcome') -ForegroundColor Green
     Write-LogMessage "Script succesvol afgerond"
     
     # Send success SMS if configured
-    Send-TextbeeSMS -Message "PC Setup Script voltooid voor client $global:ClientNumber"
+    Send-TextbeeSMS -Message (Get-TranslatedText 'error_occurred' -Parameters @("PC Setup Script voltooid voor client $global:ClientNumber"))
 }
 catch {
-    Write-Host "`nFout opgetreden: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "Controleer het logbestand voor meer details: $logFile" -ForegroundColor Yellow
+    Write-Host "`n" + (Get-TranslatedText 'error_occurred' -Parameters @($_.Exception.Message)) -ForegroundColor Red
+    Write-Host (Get-TranslatedText 'welcome') -ForegroundColor Yellow
     Write-LogMessage "Script gefaald: $($_.Exception.Message)"
     
     # Send failure SMS if configured
-    Send-TextbeeSMS -Message "PC Setup Script MISLUKT voor client $global:ClientNumber. Controleer logs."
+    Send-TextbeeSMS -Message (Get-TranslatedText 'error_occurred' -Parameters @("PC Setup Script MISLUKT voor client $global:ClientNumber. Controleer logs."))
     
     exit 1
 }
