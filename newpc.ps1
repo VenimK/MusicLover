@@ -52,16 +52,16 @@
 
 .EXAMPLE
     # Uitvoeren met standaard instellingen
-    .\newpc_fixed.ps1
+    .\newpc.ps1
 
 .EXAMPLE
     # Uitvoeren met specifieke WiFi gegevens
     $wachtwoord = Read-Host -AsSecureString "Voer WiFi wachtwoord in"
-    .\newpc_fixed.ps1 -WifiSSID "BedrijfsWiFi" -WifiPassword $wachtwoord
+    .\newpc.ps1 -WifiSSID "BedrijfsWiFi" -WifiPassword $wachtwoord
 
 .EXAMPLE
     # Uitvoeren zonder Windows Updates
-    .\newpc_fixed.ps1 -SkipWindowsUpdates
+    .\newpc.ps1 -SkipWindowsUpdates
 
 .NOTES
     Versie:         2.0
