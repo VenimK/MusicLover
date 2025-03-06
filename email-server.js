@@ -70,19 +70,41 @@ function getText(key, lang = 'nl') {
 // Get system language
 function getSystemLanguage() {
     try {
-        // Get system language from environment variables
-        const sysLang = (process.env.LANG || process.env.LANGUAGE || process.env.LC_ALL || process.env.LC_MESSAGES || '').toLowerCase();
+        // Log all relevant environment variables
+        console.log('Environment variables:');
+        console.log('LANG:', process.env.LANG);
+        console.log('LANGUAGE:', process.env.LANGUAGE);
+        console.log('LC_ALL:', process.env.LC_ALL);
+        console.log('LC_MESSAGES:', process.env.LC_MESSAGES);
+        console.log('USERLANGUAGE:', process.env.USERLANGUAGE);
+        console.log('OS Language:', process.env.OS_LANGUAGE);
+        console.log('System Language:', process.env.SYSTEM_LANGUAGE);
         
-        // For Windows, check the user's preferred language setting
-        if (!sysLang && process.platform === 'win32') {
-            const userLocale = process.env.USERLANGUAGE || process.env.LANG || '';
-            return userLocale.toLowerCase().startsWith('nl') ? 'nl' : 'en';
+        // For Windows, try to get the system language using PowerShell
+        const { execSync } = require('child_process');
+        try {
+            const powershellCmd = 'Get-WinUserLanguageList | Select-Object -First 1 | ForEach-Object { $_.LanguageTag }';
+            const sysLang = execSync(`powershell -Command "${powershellCmd}"`).toString().trim().toLowerCase();
+            console.log('PowerShell detected language:', sysLang);
+            return sysLang.startsWith('nl') ? 'nl' : 'en';
+        } catch (powershellError) {
+            console.log('Error getting language from PowerShell:', powershellError);
+            
+            // Fallback to checking environment variables
+            const envLang = (
+                process.env.USERLANGUAGE || 
+                process.env.LANG || 
+                process.env.LANGUAGE || 
+                process.env.LC_ALL || 
+                process.env.LC_MESSAGES || 
+                ''
+            ).toLowerCase();
+            
+            return envLang.startsWith('nl') ? 'nl' : 'en';
         }
-        
-        return sysLang.startsWith('nl') ? 'nl' : 'en';
     } catch (error) {
-        console.log('Error getting system language, defaulting to English:', error);
-        return 'en';
+        console.log('Error getting system language, defaulting to Dutch:', error);
+        return 'nl'; // Default to Dutch since we know the system is Dutch
     }
 }
 
