@@ -1839,35 +1839,75 @@ Add-Type @"
     }
 "@ 
 
-# Function to get system language
+# Function to detect system language
 function Get-SystemLanguage {
     try {
-        # Get the current system culture
-        $systemCulture = Get-Culture
-        Write-Host "Detected system culture: $($systemCulture.Name)"
+        # Get system culture/language
+        $culture = Get-Culture
+        $languageCode = $culture.TwoLetterISOLanguageName.ToLower()
         
-        # Get the current UI culture
-        $uiCulture = Get-UICulture
-        Write-Host "Detected UI culture: $($uiCulture.Name)"
+        Write-Host "Gedetecteerde systeemtaal/Detected system language: $languageCode" -ForegroundColor Cyan
+        Write-LogMessage "Gedetecteerde systeemtaal/Detected system language: $languageCode"
         
-        # Check if any of them are Dutch
-        if ($systemCulture.Name.StartsWith('nl') -or $uiCulture.Name.StartsWith('nl')) {
-            Write-Host "Dutch language detected, using Dutch"
-            return 'nl'
-        } else {
-            Write-Host "Non-Dutch language detected, using English"
-            return 'en'
+        # Check if we support this language
+        if ($script:Translations.ContainsKey($languageCode)) {
+            return $languageCode
+        }
+        else {
+            # Default to English if available, otherwise Dutch
+            if ($script:Translations.ContainsKey('en')) {
+                Write-Host "Taal niet ondersteund, Engels wordt gebruikt/Language not supported, using English" -ForegroundColor Yellow
+                Write-LogMessage "Taal niet ondersteund, Engels wordt gebruikt/Language not supported, using English"
+                return 'en'
+            }
+            else {
+                Write-Host "Taal niet ondersteund, Nederlands wordt gebruikt/Language not supported, using Dutch" -ForegroundColor Yellow
+                Write-LogMessage "Taal niet ondersteund, Nederlands wordt gebruikt/Language not supported, using Dutch"
+                return 'nl'
+            }
         }
     }
     catch {
-        Write-Host "Error detecting system language, defaulting to English: $($_.Exception.Message)" -ForegroundColor Yellow
-        return 'en'
+        Write-Host "Fout bij detecteren taal/Error detecting language: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Fout bij detecteren taal/Error detecting language: $($_.Exception.Message)"
+        return 'nl' # Default to Dutch on error
     }
 }
 
-# Language settings and translations
-$script:SystemLanguage = Get-SystemLanguage
+# Function to get translated text
+function Get-TranslatedText {
+    param(
+        [string]$Key,
+        [array]$Parameters = @()
+    )
+    
+    # Use the detected system language or default to Dutch
+    $language = $script:DetectedLanguage
+    
+    # Check if the key exists in the selected language
+    if ($script:Translations.ContainsKey($language) -and $script:Translations[$language].ContainsKey($Key)) {
+        $text = $script:Translations[$language][$Key]
+    }
+    # Fallback to Dutch if the key doesn't exist in the selected language
+    elseif ($script:Translations['nl'].ContainsKey($Key)) {
+        $text = $script:Translations['nl'][$Key]
+    }
+    # Last resort fallback
+    else {
+        return "[$Key]"
+    }
+    
+    # Replace parameters if provided
+    if ($Parameters.Count -gt 0) {
+        for ($i = 0; $i -lt $Parameters.Count; $i++) {
+            $text = $text -replace "\{$i\}", $Parameters[$i]
+        }
+    }
+    
+    return $text
+}
 
+# Language settings and translations
 $script:Translations = @{
     'nl' = @{
         'welcome' = "=== Windows PC Setup Script ==="
@@ -1882,10 +1922,10 @@ $script:Translations = @{
     }
     'en' = @{
         'welcome' = "=== Windows PC Setup Script ==="
-        'step1' = "Step 1: Configuring Power Management..."
-        'step2' = "Step 2: Configuring Network..."
+        'step1' = "Step 1: Setting up power management..."
+        'step2' = "Step 2: Configuring network..."
         'step3' = "Step 3: Checking Windows Updates..."
-        'step4' = "Step 4: Installing Software..."
+        'step4' = "Step 4: Installing software..."
         'step5' = "Step 5: Setting up Node.js environment..."
         'winget_installed' = "Winget is already installed, proceeding to next step..."
         'winget_not_found' = "Winget not found, starting installation..."
@@ -1893,21 +1933,11 @@ $script:Translations = @{
     }
 }
 
-function Get-TranslatedText {
-    param(
-        [string]$Key,
-        [array]$Parameters = @()
-    )
-    
-    $text = $script:Translations[$script:SystemLanguage][$Key]
-    if ($Parameters.Count -gt 0) {
-        return [string]::Format($text, $Parameters)
-    }
-    return $text
-}
-
 # Main script execution
 try {
+    # Detect system language
+    $script:DetectedLanguage = Get-SystemLanguage
+    
     Write-Host (Get-TranslatedText 'welcome') -ForegroundColor Cyan
     Write-LogMessage "Script gestart"
 
