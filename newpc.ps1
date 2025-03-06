@@ -112,8 +112,8 @@ function Test-Administrator {
 
 # Check if running as administrator
 if (-not (Test-Administrator)) {
-    Write-Host "Dit script vereist Administrator rechten." -ForegroundColor Red
-    Write-Host "Start PowerShell als Administrator en probeer opnieuw." -ForegroundColor Red
+    Write-Host (Get-TranslatedText 'admin_required') -ForegroundColor Red
+    Write-Host (Get-TranslatedText 'restart_as_admin') -ForegroundColor Red
     
     # Attempt to restart the script with elevated privileges
     try {
@@ -121,7 +121,7 @@ if (-not (Test-Administrator)) {
         exit
     }
     catch {
-        Write-Host "Kon script niet opnieuw starten met Administrator rechten." -ForegroundColor Red
+        Write-Host (Get-TranslatedText 'admin_restart_failed') -ForegroundColor Red
         exit 1
     }
 }
@@ -129,8 +129,8 @@ if (-not (Test-Administrator)) {
 # Minimum PowerShell version check
 $minimumPSVersion = [Version]'5.1'
 if ($PSVersionTable.PSVersion -lt $minimumPSVersion) {
-    Write-Host "Fout: PowerShell versie $($PSVersionTable.PSVersion) is niet ondersteund." -ForegroundColor Red
-    Write-Host "Minimaal vereiste versie: $minimumPSVersion" -ForegroundColor Red
+    Write-Host (Get-TranslatedText 'ps_version_error' -Parameters @($PSVersionTable.PSVersion)) -ForegroundColor Red
+    Write-Host (Get-TranslatedText 'ps_min_version' -Parameters @($minimumPSVersion)) -ForegroundColor Red
     exit 1
 }
 
@@ -245,7 +245,8 @@ function Test-Administrator {
 }
 
 if (-not (Test-Administrator)) {
-    Write-Host "Dit script vereist Administrator rechten. Start PowerShell als Administrator en probeer opnieuw." -ForegroundColor Red
+    Write-Host (Get-TranslatedText 'admin_required') -ForegroundColor Red
+    Write-Host (Get-TranslatedText 'restart_as_admin') -ForegroundColor Red
     exit 1
 }
 
@@ -419,7 +420,8 @@ function Test-FastNetworkConnection {
     $dnsServers = @(
         "8.8.8.8",     # Google DNS
         "1.1.1.1",     # Cloudflare DNS
-        "9.9.9.9"      # Quad9 DNS
+        "9.9.9.9",      # Quad9 DNS
+        "208.67.222.222" # OpenDNS
     )
 
     # Parallel connection test
@@ -872,117 +874,73 @@ function Install-WingetSoftware {
 
 # Function to install Windows Update module if needed
 function Install-WindowsUpdateModule {
-    Write-Host "Windows Update PowerShell module controleren..." -ForegroundColor Yellow
-    Write-LogMessage "Windows Update PowerShell module controle gestart"
+    Write-Host (Get-TranslatedText 'wu_checking') -ForegroundColor Yellow
+    Write-LogMessage "Windows Update PowerShell module controleren"
     
-    try {
-        if (!(Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-            Write-Host "PSWindowsUpdate module installeren..." -ForegroundColor Yellow
-            Install-Module -Name PSWindowsUpdate -Force -AllowClobber
-            Write-LogMessage "PSWindowsUpdate module geïnstalleerd"
+    # Check if module is installed
+    if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+        Write-Host (Get-TranslatedText 'wu_installing_module') -ForegroundColor Yellow
+        Write-LogMessage "Windows Update PowerShell module installeren"
+        
+        try {
+            Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
+            Write-Host (Get-TranslatedText 'wu_module_installed') -ForegroundColor Green
+            Write-LogMessage "Windows Update PowerShell module geïnstalleerd"
+            return $true
         }
-        Import-Module PSWindowsUpdate
-        return $true
+        catch {
+            Write-Host (Get-TranslatedText 'wu_module_failed' -Parameters @($_.Exception.Message)) -ForegroundColor Red
+            Write-LogMessage "Windows Update PowerShell module installatie mislukt: $($_.Exception.Message)"
+            return $false
+        }
     }
-    catch {
-        Write-Host "Fout bij installeren Windows Update module: $($_.Exception.Message)" -ForegroundColor Red
-        Write-LogMessage "Fout bij installeren Windows Update module: $($_.Exception.Message)"
-        return $false
+    else {
+        Write-Host (Get-TranslatedText 'wu_module_installed') -ForegroundColor Green
+        Write-LogMessage "Windows Update PowerShell module reeds geïnstalleerd"
+        return $true
     }
 }
 
-# Function to check and install Windows Updates
+# Function to install Windows Updates
 function Install-WindowsUpdates {
     try {
-        Write-Host "Windows Updates installeren..." -ForegroundColor Yellow
+        Write-Host (Get-TranslatedText 'wu_start') -ForegroundColor Yellow
         Write-LogMessage "Start Windows Updates installatie"
 
         # Install PSWindowsUpdate module if not present
-        if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-            Install-WindowsUpdateModule
+        if (-not (Install-WindowsUpdateModule)) {
+            Write-Host (Get-TranslatedText 'wu_module_failed_general') -ForegroundColor Red
+            Write-LogMessage "Kon Windows Update PowerShell module niet installeren"
+            return $false
         }
         
         # Import the module
         Import-Module PSWindowsUpdate
         
-        # Get updates in parallel
-        Write-Host "Updates zoeken..." -ForegroundColor Yellow
+        # Search for updates
+        Write-Host (Get-TranslatedText 'wu_searching') -ForegroundColor Yellow
+        Write-LogMessage "Zoeken naar Windows Updates"
         
-        $regularJob = Start-Job -ScriptBlock { 
-            Import-Module PSWindowsUpdate
-            Get-WindowsUpdate 
-        }
+        $updates = Get-WindowsUpdate
+        $updateCount = ($updates | Measure-Object).Count
         
-        $optionalJob = Start-Job -ScriptBlock { 
-            Import-Module PSWindowsUpdate
-            Get-WindowsUpdate -IsHidden 
-        }
+        Write-Host (Get-TranslatedText 'wu_found' -Parameters @($updateCount)) -ForegroundColor Cyan
+        Write-LogMessage "Gevonden Windows Updates: $updateCount"
         
-        # Wait for both jobs to complete with timeout
-        $timeout = 120 # 2 minutes timeout
-        $completed = Wait-Job -Job $regularJob, $optionalJob -Timeout $timeout
-
-        if ($completed -notcontains $regularJob -or $completed -notcontains $optionalJob) {
-            Write-Host "Timeout bij zoeken naar updates. Doorgaan met gevonden updates..." -ForegroundColor Yellow
-            Write-LogMessage "Timeout bij zoeken naar updates"
-        }
-        
-        $regularUpdates = Receive-Job -Job $regularJob -ErrorAction SilentlyContinue
-        $optionalUpdates = Receive-Job -Job $optionalJob -ErrorAction SilentlyContinue
-        
-        Remove-Job -Job $regularJob, $optionalJob -Force
-        
-        $regularCount = if ($regularUpdates) { @($regularUpdates).Count } else { 0 }
-        $optionalCount = if ($optionalUpdates) { @($optionalUpdates).Count } else { 0 }
-        $totalUpdates = $regularCount + $optionalCount
-
-        if ($totalUpdates -eq 0) {
-            Write-Host "Geen updates beschikbaar (regulier of optioneel)" -ForegroundColor Green
-            Write-LogMessage "Geen Windows Updates beschikbaar"
+        if ($updateCount -eq 0) {
+            Write-Host (Get-TranslatedText 'wu_no_updates') -ForegroundColor Green
+            Write-LogMessage "Geen Windows Updates gevonden"
             return $true
         }
-
-        Write-Host "Gevonden updates:" -ForegroundColor Yellow
-        Write-Host "- Reguliere updates: $regularCount" -ForegroundColor Yellow
-        Write-Host "- Optionele updates: $optionalCount" -ForegroundColor Yellow
-        Write-LogMessage "Gevonden: $regularCount reguliere updates, $optionalCount optionele updates"
-
-        # Display detailed update information
-        if ($regularCount -gt 0) {
-            Write-Host "`nDetails van reguliere updates:" -ForegroundColor Yellow
-            foreach ($update in $regularUpdates) {
-                Write-Host "  * $($update.Title)" -ForegroundColor White
-                Write-Host "    - Grootte: $([math]::Round($update.Size / 1MB, 2)) MB" -ForegroundColor Gray
-                Write-Host "    - KB Nummer: $($update.KBArticleIDs)" -ForegroundColor Gray
-                Write-LogMessage "Update gevonden: $($update.Title) (KB$($update.KBArticleIDs))"
-            }
-        }
-
-        if ($optionalCount -gt 0) {
-            Write-Host "`nDetails van optionele updates:" -ForegroundColor Yellow
-            foreach ($update in $optionalUpdates) {
-                Write-Host "  * $($update.Title)" -ForegroundColor White
-                Write-Host "    - Grootte: $([math]::Round($update.Size / 1MB, 2)) MB" -ForegroundColor Gray
-                Write-Host "    - KB Nummer: $($update.KBArticleIDs)" -ForegroundColor Gray
-                Write-LogMessage "Optionele update gevonden: $($update.Title) (KB$($update.KBArticleIDs))"
-            }
-        }
-
-        # Create log directory if it doesn't exist
-        $logDir = Join-Path $env:TEMP "WindowsUpdateLogs"
-        if (-not (Test-Path $logDir)) {
-            New-Item -ItemType Directory -Path $logDir -Force | Out-Null
-        }
-
-        # Define log paths
-        $regularUpdatesLog = Join-Path $logDir "Windows_Regular_Updates_Log.txt"
-        $optionalUpdatesLog = Join-Path $logDir "Windows_Optional_Updates_Log.txt"
-
-        # Install updates concurrently
+        
+        # Install updates
+        Write-Host (Get-TranslatedText 'wu_installing') -ForegroundColor Yellow
+        Write-LogMessage "Windows Updates installeren"
+        
         $jobs = @()
 
         # Start regular updates
-        if ($regularCount -gt 0) {
+        if ($updateCount -gt 0) {
             Write-Host "`nReguliere updates worden geinstalleerd..." -ForegroundColor Yellow
             $jobs += Start-Job -ScriptBlock {
                 param($LogPath)
@@ -1084,23 +1042,20 @@ function Install-WindowsUpdates {
 
 # Function to check Node.js installation
 function Test-NodeJS {
-    Write-Host "Node.js installatie controleren..." -ForegroundColor Yellow
-    Write-LogMessage "Node.js installatie controle gestart"
+    Write-Host (Get-TranslatedText 'nodejs_checking') -ForegroundColor Yellow
+    Write-LogMessage "Node.js installatie controleren"
     
     try {
-        # Add Node.js to PATH if it exists
-        $nodePath = "C:\Program Files\nodejs"
-        if (Test-Path $nodePath) {
-            $env:Path = "$env:Path;$nodePath"
-        }
-        
-        $nodeVersion = node -v
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "Node.js gevonden: $nodeVersion" -ForegroundColor Green
-            Write-LogMessage "Node.js gevonden: $nodeVersion"
+        # Check if Node.js is installed
+        $nodeVersion = & node -v 2>$null
+        if ($LASTEXITCODE -eq 0 -and $nodeVersion) {
+            Write-Host (Get-TranslatedText 'nodejs_installed' -Parameters @($nodeVersion)) -ForegroundColor Green
+            Write-LogMessage "Node.js is geïnstalleerd (versie: $nodeVersion)"
             return $true
         }
-        return $false
+        else {
+            return $false
+        }
     }
     catch {
         return $false
@@ -1913,25 +1868,128 @@ $script:Translations = @{
         'welcome' = "=== Windows PC Setup Script ==="
         'step1' = "Stap 1: Energiebeheer instellen..."
         'step2' = "Stap 2: Netwerk configureren..."
-        'step3' = "Stap 3: Windows updates controleren..."
-        'step4' = "Stap 4: Software installeren..."
-        'step5' = "Stap 5: Node.js omgeving instellen..."
-        'winget_installed' = "Winget is reeds geïnstalleerd, ga door naar volgende stap..."
-        'winget_not_found' = "Winget is niet gevonden, start installatie..."
+        'step3' = "Stap 3: Windows Updates installeren..."
+        'step4' = "Stap 4: Winget installeren..."
+        'step5' = "Stap 5: Software installeren..."
+        'step6' = "Stap 6: Node.js omgeving opzetten..."
+        'step7' = "Stap 7: Node.js server starten..."
+        'step8' = "Stap 8: Index bestand openen..."
+        'step9' = "Stap 9: Opruimen..."
+        'completed' = "Setup succesvol afgerond!"
         'error_occurred' = "Er is een fout opgetreden: {0}"
+        'check_log' = "Controleer het logbestand voor details: {0}"
+        'press_any_key' = "Druk op een toets om af te sluiten..."
+        'admin_required' = "Dit script vereist Administrator rechten."
+        'restart_as_admin' = "Start PowerShell als Administrator en probeer opnieuw."
+        'admin_restart_failed' = "Kon script niet opnieuw starten met Administrator rechten."
+        'ps_version_error' = "Fout: PowerShell versie {0} is niet ondersteund."
+        'ps_min_version' = "Minimaal vereiste versie: {0}"
+        'enter_client_number' = "Voer het klantnummer in:"
+        'nodejs_checking' = "Node.js installatie controleren..."
+        'nodejs_installed' = "Node.js is geïnstalleerd (versie: {0})."
+        'winget_installed' = "Winget is reeds geïnstalleerd, doorgaan naar volgende stap..."
+        'winget_not_found' = "Winget niet gevonden, installatie starten..."
+        
+        # Network messages
+        'network_checking' = "Netwerkverbinding controleren..."
+        'network_connected' = "Netwerkverbinding OK."
+        'network_not_connected' = "Geen netwerkverbinding gedetecteerd."
+        'wifi_setup' = "WiFi verbinding opzetten..."
+        'wifi_connected' = "WiFi verbinding succesvol."
+        'wifi_failed' = "WiFi verbinding mislukt: {0}"
+        'enter_wifi_ssid' = "Voer WiFi netwerknaam (SSID) in:"
+        'enter_wifi_password' = "Voer WiFi wachtwoord in:"
+        
+        # Windows Update messages
+        'wu_checking' = "Windows Update PowerShell module controleren..."
+        'wu_installing_module' = "Windows Update PowerShell module installeren..."
+        'wu_module_installed' = "Windows Update PowerShell module geïnstalleerd."
+        'wu_module_failed' = "Windows Update PowerShell module installatie mislukt: {0}"
+        'wu_module_failed_general' = "Kon Windows Update PowerShell module niet installeren."
+        'wu_start' = "Windows Updates installeren..."
+        'wu_searching' = "Zoeken naar updates..."
+        'wu_found' = "{0} updates gevonden."
+        'wu_no_updates' = "Geen updates gevonden."
+        'wu_installing' = "Updates worden geïnstalleerd..."
+        'wu_optional' = "Optionele updates worden geïnstalleerd..."
+        'wu_complete' = "Windows Updates installatie voltooid."
+        'wu_error' = "Fout bij Windows Updates: {0}"
+        
+        # Software installation messages
+        'software_start' = "Winget software installatie starten..."
+        'software_checking' = "Controleren {0}..."
+        'software_installing' = "{0} wordt geïnstalleerd..."
+        'software_installed' = "{0} is al geïnstalleerd."
+        'software_complete' = "Alle software installaties voltooid"
+        'software_failed' = "Software installatie mislukt: {0}"
+        
+        # General messages
+        'preparing' = "Voorbereiden..."
     }
     'en' = @{
         'welcome' = "=== Windows PC Setup Script ==="
         'step1' = "Step 1: Setting up power management..."
         'step2' = "Step 2: Configuring network..."
-        'step3' = "Step 3: Checking Windows Updates..."
-        'step4' = "Step 4: Installing software..."
-        'step5' = "Step 5: Setting up Node.js environment..."
+        'step3' = "Step 3: Installing Windows Updates..."
+        'step4' = "Step 4: Installing Winget..."
+        'step5' = "Step 5: Installing software..."
+        'step6' = "Step 6: Setting up Node.js environment..."
+        'step7' = "Step 7: Starting Node.js server..."
+        'step8' = "Step 8: Opening index file..."
+        'step9' = "Step 9: Cleaning up..."
+        'completed' = "Setup completed successfully!"
+        'error_occurred' = "An error occurred: {0}"
+        'check_log' = "Check the log file for details: {0}"
+        'press_any_key' = "Press any key to exit..."
+        'admin_required' = "This script requires Administrator privileges."
+        'restart_as_admin' = "Start PowerShell as Administrator and try again."
+        'admin_restart_failed' = "Could not restart script with Administrator privileges."
+        'ps_version_error' = "Error: PowerShell version {0} is not supported."
+        'ps_min_version' = "Minimum required version: {0}"
+        'enter_client_number' = "Enter the client number:"
+        'nodejs_checking' = "Checking Node.js installation..."
+        'nodejs_installed' = "Node.js is installed (version: {0})."
         'winget_installed' = "Winget is already installed, proceeding to next step..."
         'winget_not_found' = "Winget not found, starting installation..."
-        'error_occurred' = "An error occurred: {0}"
+        
+        # Network messages
+        'network_checking' = "Checking network connection..."
+        'network_connected' = "Network connection OK."
+        'network_not_connected' = "No network connection detected."
+        'wifi_setup' = "Setting up WiFi connection..."
+        'wifi_connected' = "WiFi connection successful."
+        'wifi_failed' = "WiFi connection failed: {0}"
+        'enter_wifi_ssid' = "Enter WiFi network name (SSID):"
+        'enter_wifi_password' = "Enter WiFi password:"
+        
+        # Windows Update messages
+        'wu_checking' = "Checking Windows Update PowerShell module..."
+        'wu_installing_module' = "Installing Windows Update PowerShell module..."
+        'wu_module_installed' = "Windows Update PowerShell module installed."
+        'wu_module_failed' = "Windows Update PowerShell module installation failed: {0}"
+        'wu_module_failed_general' = "Could not install Windows Update PowerShell module."
+        'wu_start' = "Installing Windows Updates..."
+        'wu_searching' = "Searching for updates..."
+        'wu_found' = "Found {0} updates."
+        'wu_no_updates' = "No updates found."
+        'wu_installing' = "Installing updates..."
+        'wu_optional' = "Installing optional updates..."
+        'wu_complete' = "Windows Updates installation complete."
+        'wu_error' = "Error with Windows Updates: {0}"
+        
+        # Software installation messages
+        'software_start' = "Starting Winget software installation..."
+        'software_checking' = "Checking {0}..."
+        'software_installing' = "Installing {0}..."
+        'software_installed' = "{0} is already installed."
+        'software_complete' = "All software installations completed"
+        'software_failed' = "Software installation failed: {0}"
+        
+        # General messages
+        'preparing' = "Preparing..."
     }
 }
+{{ ... }}
 
 # Main script execution
 try {
@@ -2022,7 +2080,7 @@ try {
     Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Host (Get-TranslatedText 'winget_installed') -ForegroundColor Green
-        Write-LogMessage "Winget is reeds geinstalleerd"
+        Write-LogMessage "Winget is reeds geïnstalleerd"
     } else {
         Write-Host (Get-TranslatedText 'winget_not_found') -ForegroundColor Yellow
         if (-not (Install-Winget)) {
