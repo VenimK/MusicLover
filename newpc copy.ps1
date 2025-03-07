@@ -1,4 +1,3 @@
-# Encoding: UTF-8
 <#
 .SYNOPSIS
     Geautomatiseerd installatiescript voor nieuwe Windows PC's in een bedrijfsomgeving.
@@ -105,135 +104,13 @@ param(
     [switch]$RunIndexOpen
 )
 
-# Ensure proper encoding for Dutch characters
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
-$PSDefaultParameterValues['*:Encoding'] = 'utf8'
-
-# Function to get system language (always returns Dutch)
-function Get-SystemLanguage {
-    try {
-        $culture = Get-Culture
-        $languageCode = $culture.TwoLetterISOLanguageName.ToLower()
-        
-        Write-Host "Gedetecteerde systeemtaal: $languageCode" -ForegroundColor Cyan
-        Write-LogMessage "Gedetecteerde systeemtaal: $languageCode"
-        
-        # Always return Dutch
-        return 'nl'
-    }
-    catch {
-        Write-Host "Fout bij detecteren taal: $($_.Exception.Message)" -ForegroundColor Red
-        Write-LogMessage "Fout bij detecteren taal: $($_.Exception.Message)"
-        return 'nl' # Default to Dutch on error
-    }
-}
-
-# Language settings and translations
-$script:Translations = @{
-    'nl' = @{
-        'welcome' = "=== Windows PC Setup Script ==="
-        'step1' = "Stap 1: Energiebeheer instellen..."
-        'step2' = "Stap 2: Netwerk configureren..."
-        'step3' = "Stap 3: Windows Updates installeren..."
-        'step4' = "Stap 4: Winget installeren..."
-        'step5' = "Stap 5: Software installeren..."
-        'step6' = "Stap 6: Node.js omgeving opzetten..."
-        'step7' = "Stap 7: Node.js server starten..."
-        'step8' = "Stap 8: Index bestand openen..."
-        'step9' = "Stap 9: Opruimen..."
-        'completed' = "Setup succesvol afgerond!"
-        'error_occurred' = "Er is een fout opgetreden: {0}"
-        'check_log' = "Controleer het logbestand voor details: {0}"
-        'press_any_key' = "Druk op een toets om af te sluiten..."
-        'admin_required' = "Dit script vereist Administrator rechten."
-        'restart_as_admin' = "Start PowerShell als Administrator en probeer opnieuw."
-        'admin_restart_failed' = "Kon script niet opnieuw starten met Administrator rechten."
-        'ps_version_error' = "Fout: PowerShell versie {0} is niet ondersteund."
-        'ps_min_version' = "Minimaal vereiste versie: {0}"
-        'enter_client_number' = "Voer het klantnummer in:"
-        'nodejs_checking' = "Node.js installatie controleren..."
-        'nodejs_installed' = "Node.js is geinstalleerd (versie: {0})."
-        'winget_installed' = "Winget is reeds geinstalleerd, doorgaan naar volgende stap..."
-        'winget_not_found' = "Winget niet gevonden, installatie starten..."
-        
-        # Network messages
-        'network_checking' = "Netwerkverbinding controleren..."
-        'network_connected' = "Netwerkverbinding OK."
-        'network_not_connected' = "Geen netwerkverbinding gedetecteerd."
-        'wifi_setup' = "WiFi verbinding opzetten..."
-        'wifi_connected' = "WiFi verbinding succesvol."
-        'wifi_failed' = "WiFi verbinding mislukt: {0}"
-        'enter_wifi_ssid' = "Voer WiFi netwerknaam (SSID) in:"
-        'enter_wifi_password' = "Voer WiFi wachtwoord in:"
-        
-        # Windows Update messages
-        'wu_checking' = "Windows Update PowerShell module controleren..."
-        'wu_installing_module' = "Windows Update PowerShell module installeren..."
-        'wu_module_installed' = "Windows Update PowerShell module geinstalleerd."
-        'wu_module_failed' = "Windows Update PowerShell module installatie mislukt: {0}"
-        'wu_module_failed_general' = "Kon Windows Update PowerShell module niet installeren."
-        'wu_start' = "Windows Updates installeren..."
-        'wu_searching' = "Zoeken naar updates..."
-        'wu_found' = "{0} updates gevonden."
-        'wu_no_updates' = "Geen updates gevonden."
-        'wu_installing' = "Updates worden geinstalleerd..."
-        'wu_optional' = "Optionele updates worden geinstalleerd..."
-        'wu_complete' = "Windows Updates installatie voltooid."
-        'wu_error' = "Fout bij Windows Updates: {0}"
-        
-        # Software installation messages
-        'software_start' = "Winget software installatie starten..."
-        'software_checking' = "Controleren {0}..."
-        'software_installing' = "{0} wordt geinstalleerd..."
-        'software_installed' = "{0} is al geinstalleerd."
-        'software_complete' = "Alle software installaties voltooid"
-        'software_failed' = "Software installatie mislukt: {0}"
-        
-        # General messages
-        'preparing' = "Voorbereiden..."
-    }
-}
-
-# Function to get translated text
-function Get-TranslatedText {
-    param(
-        [string]$Key,
-        [array]$Parameters = @()
-    )
-    
-    # Always use Dutch
-    $language = 'nl'
-    
-    # Check if the key exists
-    if ($script:Translations[$language].ContainsKey($Key)) {
-        $text = $script:Translations[$language][$Key]
-    }
-    # Last resort fallback
-    else {
-        return "[$Key]"
-    }
-    
-    # Replace parameters if provided
-    if ($Parameters.Count -gt 0) {
-        for ($i = 0; $i -lt $Parameters.Count; $i++) {
-            $text = $text -replace "\{$i\}", $Parameters[$i]
-        }
-    }
-    
-    return $text
-}
-
-# Initialize language
-$script:DetectedLanguage = 'nl'
-
 # Function to check if running as administrator
 function Test-Administrator {
     $currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-# Function to check if running as administrator
+# Check if running as administrator
 if (-not (Test-Administrator)) {
     Write-Host (Get-TranslatedText 'admin_required') -ForegroundColor Red
     Write-Host (Get-TranslatedText 'restart_as_admin') -ForegroundColor Red
@@ -272,8 +149,8 @@ function Test-ScriptDependencies {
             
             # For Windows 11 (build 22000 or higher), winget should be pre-installed
             if ($windowsVersion.Build -ge 22000) {
-                Write-Host "Windows 11 gedetecteerd. Winget zou pre-geinstalleerd moeten zijn." -ForegroundColor Yellow
-                Write-Host "Controleer of de App Installer correct is geinstalleerd via de Microsoft Store." -ForegroundColor Yellow
+                Write-Host "Windows 11 gedetecteerd. Winget zou pre-geïnstalleerd moeten zijn." -ForegroundColor Yellow
+                Write-Host "Controleer of de App Installer correct is geïnstalleerd via de Microsoft Store." -ForegroundColor Yellow
                 return $false
             }
             
@@ -769,7 +646,7 @@ function Install-WingetSoftware {
             Write-LogMessage "Winget versie: $wingetVersion"
         }
         catch {
-            throw "Winget is niet correct geinstalleerd. Probeer het script opnieuw uit te voeren."
+            throw "Winget is niet correct geïnstalleerd. Probeer het script opnieuw uit te voeren."
         }
         
         # Get all available upgrades at once
@@ -1008,7 +885,7 @@ function Install-WindowsUpdateModule {
         try {
             Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
             Write-Host (Get-TranslatedText 'wu_module_installed') -ForegroundColor Green
-            Write-LogMessage "Windows Update PowerShell module geinstalleerd"
+            Write-LogMessage "Windows Update PowerShell module geïnstalleerd"
             return $true
         }
         catch {
@@ -1019,7 +896,7 @@ function Install-WindowsUpdateModule {
     }
     else {
         Write-Host (Get-TranslatedText 'wu_module_installed') -ForegroundColor Green
-        Write-LogMessage "Windows Update PowerShell module reeds geinstalleerd"
+        Write-LogMessage "Windows Update PowerShell module reeds geïnstalleerd"
         return $true
     }
 }
@@ -1173,7 +1050,7 @@ function Test-NodeJS {
         $nodeVersion = & node -v 2>$null
         if ($LASTEXITCODE -eq 0 -and $nodeVersion) {
             Write-Host (Get-TranslatedText 'nodejs_installed' -Parameters @($nodeVersion)) -ForegroundColor Green
-            Write-LogMessage "Node.js is geinstalleerd (versie: $nodeVersion)"
+            Write-LogMessage "Node.js is geïnstalleerd (versie: $nodeVersion)"
             return $true
         }
         else {
@@ -1750,7 +1627,7 @@ function Install-MicrosoftOffice {
         }
 
         Show-Progress -Activity "Microsoft Office" -Status "ODT locatie zoeken..." -PercentComplete 10
-        
+
         # First check USB drives
         $usbDrives = Get-WmiObject Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 }
         $fixedDrives = Get-WmiObject Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 }
@@ -1924,18 +1801,195 @@ function Get-SystemLanguage {
         $culture = Get-Culture
         $languageCode = $culture.TwoLetterISOLanguageName.ToLower()
         
-        Write-Host "Gedetecteerde systeemtaal: $languageCode" -ForegroundColor Cyan
-        Write-LogMessage "Gedetecteerde systeemtaal: $languageCode"
+        Write-Host "Gedetecteerde systeemtaal/Detected system language: $languageCode" -ForegroundColor Cyan
+        Write-LogMessage "Gedetecteerde systeemtaal/Detected system language: $languageCode"
         
-        # Always return Dutch
-        return 'nl'
+        # Check if we support this language
+        if ($script:Translations.ContainsKey($languageCode)) {
+            return $languageCode
+        }
+        else {
+            # Default to English if available, otherwise Dutch
+            if ($script:Translations.ContainsKey('en')) {
+                Write-Host "Taal niet ondersteund, Engels wordt gebruikt/Language not supported, using English" -ForegroundColor Yellow
+                Write-LogMessage "Taal niet ondersteund, Engels wordt gebruikt/Language not supported, using English"
+                return 'en'
+            }
+            else {
+                Write-Host "Taal niet ondersteund, Nederlands wordt gebruikt/Language not supported, using Dutch" -ForegroundColor Yellow
+                Write-LogMessage "Taal niet ondersteund, Nederlands wordt gebruikt/Language not supported, using Dutch"
+                return 'nl'
+            }
+        }
     }
     catch {
-        Write-Host "Fout bij detecteren taal: $($_.Exception.Message)" -ForegroundColor Red
-        Write-LogMessage "Fout bij detecteren taal: $($_.Exception.Message)"
+        Write-Host "Fout bij detecteren taal/Error detecting language: $($_.Exception.Message)" -ForegroundColor Red
+        Write-LogMessage "Fout bij detecteren taal/Error detecting language: $($_.Exception.Message)"
         return 'nl' # Default to Dutch on error
     }
 }
+
+# Function to get translated text
+function Get-TranslatedText {
+    param(
+        [string]$Key,
+        [array]$Parameters = @()
+    )
+    
+    # Use the detected system language or default to Dutch
+    $language = $script:DetectedLanguage
+    
+    # Check if the key exists in the selected language
+    if ($script:Translations.ContainsKey($language) -and $script:Translations[$language].ContainsKey($Key)) {
+        $text = $script:Translations[$language][$Key]
+    }
+    # Fallback to Dutch if the key doesn't exist in the selected language
+    elseif ($script:Translations['nl'].ContainsKey($Key)) {
+        $text = $script:Translations['nl'][$Key]
+    }
+    # Last resort fallback
+    else {
+        return "[$Key]"
+    }
+    
+    # Replace parameters if provided
+    if ($Parameters.Count -gt 0) {
+        for ($i = 0; $i -lt $Parameters.Count; $i++) {
+            $text = $text -replace "\{$i\}", $Parameters[$i]
+        }
+    }
+    
+    return $text
+}
+
+# Language settings and translations
+$script:Translations = @{
+    'nl' = @{
+        'welcome' = "=== Windows PC Setup Script ==="
+        'step1' = "Stap 1: Energiebeheer instellen..."
+        'step2' = "Stap 2: Netwerk configureren..."
+        'step3' = "Stap 3: Windows Updates installeren..."
+        'step4' = "Stap 4: Winget installeren..."
+        'step5' = "Stap 5: Software installeren..."
+        'step6' = "Stap 6: Node.js omgeving opzetten..."
+        'step7' = "Stap 7: Node.js server starten..."
+        'step8' = "Stap 8: Index bestand openen..."
+        'step9' = "Stap 9: Opruimen..."
+        'completed' = "Setup succesvol afgerond!"
+        'error_occurred' = "Er is een fout opgetreden: {0}"
+        'check_log' = "Controleer het logbestand voor details: {0}"
+        'press_any_key' = "Druk op een toets om af te sluiten..."
+        'admin_required' = "Dit script vereist Administrator rechten."
+        'restart_as_admin' = "Start PowerShell als Administrator en probeer opnieuw."
+        'admin_restart_failed' = "Kon script niet opnieuw starten met Administrator rechten."
+        'ps_version_error' = "Fout: PowerShell versie {0} is niet ondersteund."
+        'ps_min_version' = "Minimaal vereiste versie: {0}"
+        'enter_client_number' = "Voer het klantnummer in:"
+        'nodejs_checking' = "Node.js installatie controleren..."
+        'nodejs_installed' = "Node.js is geïnstalleerd (versie: {0})."
+        'winget_installed' = "Winget is reeds geïnstalleerd, doorgaan naar volgende stap..."
+        'winget_not_found' = "Winget niet gevonden, installatie starten..."
+        
+        # Network messages
+        'network_checking' = "Netwerkverbinding controleren..."
+        'network_connected' = "Netwerkverbinding OK."
+        'network_not_connected' = "Geen netwerkverbinding gedetecteerd."
+        'wifi_setup' = "WiFi verbinding opzetten..."
+        'wifi_connected' = "WiFi verbinding succesvol."
+        'wifi_failed' = "WiFi verbinding mislukt: {0}"
+        'enter_wifi_ssid' = "Voer WiFi netwerknaam (SSID) in:"
+        'enter_wifi_password' = "Voer WiFi wachtwoord in:"
+        
+        # Windows Update messages
+        'wu_checking' = "Windows Update PowerShell module controleren..."
+        'wu_installing_module' = "Windows Update PowerShell module installeren..."
+        'wu_module_installed' = "Windows Update PowerShell module geïnstalleerd."
+        'wu_module_failed' = "Windows Update PowerShell module installatie mislukt: {0}"
+        'wu_module_failed_general' = "Kon Windows Update PowerShell module niet installeren."
+        'wu_start' = "Windows Updates installeren..."
+        'wu_searching' = "Zoeken naar updates..."
+        'wu_found' = "{0} updates gevonden."
+        'wu_no_updates' = "Geen updates gevonden."
+        'wu_installing' = "Updates worden geïnstalleerd..."
+        'wu_optional' = "Optionele updates worden geïnstalleerd..."
+        'wu_complete' = "Windows Updates installatie voltooid."
+        'wu_error' = "Fout bij Windows Updates: {0}"
+        
+        # Software installation messages
+        'software_start' = "Winget software installatie starten..."
+        'software_checking' = "Controleren {0}..."
+        'software_installing' = "{0} wordt geïnstalleerd..."
+        'software_installed' = "{0} is al geïnstalleerd."
+        'software_complete' = "Alle software installaties voltooid"
+        'software_failed' = "Software installatie mislukt: {0}"
+        
+        # General messages
+        'preparing' = "Voorbereiden..."
+    }
+    'en' = @{
+        'welcome' = "=== Windows PC Setup Script ==="
+        'step1' = "Step 1: Setting up power management..."
+        'step2' = "Step 2: Configuring network..."
+        'step3' = "Step 3: Installing Windows Updates..."
+        'step4' = "Step 4: Installing Winget..."
+        'step5' = "Step 5: Installing software..."
+        'step6' = "Step 6: Setting up Node.js environment..."
+        'step7' = "Step 7: Starting Node.js server..."
+        'step8' = "Step 8: Opening index file..."
+        'step9' = "Step 9: Cleaning up..."
+        'completed' = "Setup completed successfully!"
+        'error_occurred' = "An error occurred: {0}"
+        'check_log' = "Check the log file for details: {0}"
+        'press_any_key' = "Press any key to exit..."
+        'admin_required' = "This script requires Administrator privileges."
+        'restart_as_admin' = "Start PowerShell as Administrator and try again."
+        'admin_restart_failed' = "Could not restart script with Administrator privileges."
+        'ps_version_error' = "Error: PowerShell version {0} is not supported."
+        'ps_min_version' = "Minimum required version: {0}"
+        'enter_client_number' = "Enter the client number:"
+        'nodejs_checking' = "Checking Node.js installation..."
+        'nodejs_installed' = "Node.js is installed (version: {0})."
+        'winget_installed' = "Winget is already installed, proceeding to next step..."
+        'winget_not_found' = "Winget not found, starting installation..."
+        
+        # Network messages
+        'network_checking' = "Checking network connection..."
+        'network_connected' = "Network connection OK."
+        'network_not_connected' = "No network connection detected."
+        'wifi_setup' = "Setting up WiFi connection..."
+        'wifi_connected' = "WiFi connection successful."
+        'wifi_failed' = "WiFi connection failed: {0}"
+        'enter_wifi_ssid' = "Enter WiFi network name (SSID):"
+        'enter_wifi_password' = "Enter WiFi password:"
+        
+        # Windows Update messages
+        'wu_checking' = "Checking Windows Update PowerShell module..."
+        'wu_installing_module' = "Installing Windows Update PowerShell module..."
+        'wu_module_installed' = "Windows Update PowerShell module installed."
+        'wu_module_failed' = "Windows Update PowerShell module installation failed: {0}"
+        'wu_module_failed_general' = "Could not install Windows Update PowerShell module."
+        'wu_start' = "Installing Windows Updates..."
+        'wu_searching' = "Searching for updates..."
+        'wu_found' = "Found {0} updates."
+        'wu_no_updates' = "No updates found."
+        'wu_installing' = "Installing updates..."
+        'wu_optional' = "Installing optional updates..."
+        'wu_complete' = "Windows Updates installation complete."
+        'wu_error' = "Error with Windows Updates: {0}"
+        
+        # Software installation messages
+        'software_start' = "Starting Winget software installation..."
+        'software_checking' = "Checking {0}..."
+        'software_installing' = "Installing {0}..."
+        'software_installed' = "{0} is already installed."
+        'software_complete' = "All software installations completed"
+        'software_failed' = "Software installation failed: {0}"
+        
+        # General messages
+        'preparing' = "Preparing..."
+    }
+}
+{{ ... }}
 
 # Main script execution
 try {
@@ -2026,7 +2080,7 @@ try {
     Write-Host "`n" + (Get-TranslatedText 'step5') -ForegroundColor Yellow
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Host (Get-TranslatedText 'winget_installed') -ForegroundColor Green
-        Write-LogMessage "Winget is reeds geinstalleerd"
+        Write-LogMessage "Winget is reeds geïnstalleerd"
     } else {
         Write-Host (Get-TranslatedText 'winget_not_found') -ForegroundColor Yellow
         if (-not (Install-Winget)) {
